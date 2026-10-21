@@ -1,0 +1,606 @@
+openapi: 3.0.3
+info:
+  title: Planificador de procesos PI — API propuesta
+  version: 0.1.0
+  description: |
+    Borrador de contrato para revisión. Los nombres de rutas, campos, identificadores,
+    respuestas y códigos que no estén fijados expresamente por los documentos
+    originales son propuestas pendientes de validación del equipo. No es todavía
+    un contrato aprobado para implementación.
+security:
+  - bearerAuth: []
+tags:
+  - name: Planificador
+    description: Operaciones propuestas para planificaciones y catálogo.
+  - name: Historial
+    description: Consulta del historial propio del usuario autenticado.
+  - name: Proceso
+    description: Administración propuesta de conjuntos persistidos.
+paths:
+  /algoritmos:
+    get:
+      tags: [Planificador]
+      operationId: listarAlgoritmos
+      summary: Consultar los algoritmos disponibles
+      description: |
+        Endpoint mínimo exigido por los documentos. La respuesta debe reflejar
+        el catálogo publicado por listar_algoritmos() en la biblioteca C.
+        El formato de respuesta como objetos con identificador es una propuesta;
+        la lista de identificadores es abierta y no contiene un enum cerrado.
+      responses:
+        '200':
+          description: Catálogo dinámico disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlgorithmCatalog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /planificaciones:
+    post:
+      tags: [Planificador]
+      operationId: crearPlanificacion
+      summary: Ejecutar y registrar una planificación
+      description: |
+        Endpoint mínimo exigido por los documentos. Angular envía la carga
+        completa de procesos; el conjunto no necesita existir en proceso-service.
+        El servicio calcula las métricas, las asocia al resultado y registra la
+        corrida en el historial del usuario identificado por el claim sub del JWT.
+        El quantum se envía cuando corresponde al algoritmo. Esta ruta, los nombres
+        de campos y el estado 201 son propuestas pendientes de revisión en P-03.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanificationRequest'
+      responses:
+        '201':
+          description: Planificación ejecutada y registrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanificationRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /comparaciones:
+    post:
+      tags: [Planificador]
+      operationId: compararPlanificaciones
+      summary: Comparar algoritmos sobre la misma carga
+      description: |
+        Propuesta para cumplir el requisito de iniciar una comparación con una
+        sola acción. Ejecutaría cada identificador solicitado sobre los mismos
+        procesos; no fija una lista cerrada. Deben validarse la ruta, la selección
+        de los cuatro algoritmos base frente a algoritmos futuros y si cada
+        resultado crea un registro individual de historial (P-03, P-04 y P-05).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComparisonRequest'
+      responses:
+        '201':
+          description: Comparación ejecutada; el registro de cada corrida está sujeto a validación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /historial:
+    get:
+      tags: [Historial]
+      operationId: listarHistorialPropio
+      summary: Consultar el historial propio
+      description: |
+        La consulta se limita al usuario autenticado: el propietario se obtiene
+        del claim sub, no de un parámetro enviado por Angular. La ruta y el esquema
+        de respuesta son propuestas pendientes de revisión (P-03 y P-05).
+      responses:
+        '200':
+          description: Corridas del usuario autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanificationHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /historial/{planificacionId}:
+    get:
+      tags: [Historial]
+      operationId: obtenerPlanificacionPropia
+      summary: Consultar una corrida propia
+      description: |
+        Propuesta. Solo se devuelve una corrida cuyo propietario sea el sub
+        autenticado. El tratamiento de una corrida inexistente o ajena y el
+        formato del identificador deben validarse (P-03 y P-05).
+      parameters:
+        - name: planificacionId
+          in: path
+          required: true
+          description: Identificador de corrida propuesto; formato pendiente de validación.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Corrida propia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanificationRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /conjuntos:
+    get:
+      tags: [Proceso]
+      operationId: listarConjuntos
+      summary: Consultar conjuntos disponibles
+      description: |
+        Propuesta de ruta para consultar conjuntos persistidos. La matriz de roles
+        permite a docente y estudiante consultar y utilizar conjuntos disponibles.
+        La forma de la respuesta y su posible paginación requieren validación (P-03).
+      responses:
+        '200':
+          description: Conjuntos disponibles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessSetList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Proceso]
+      operationId: crearConjunto
+      summary: Registrar un conjunto de referencia
+      description: |
+        Propuesta de ruta. Según la matriz de autorización, solo docente puede
+        registrar conjuntos de referencia. Validar con el equipo si se guardarán
+        también conjuntos personales de estudiante; el alcance actual solo fija
+        la administración de conjuntos de referencia (P-03).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessSetInput'
+      responses:
+        '201':
+          description: Conjunto registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessSet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /conjuntos/{conjuntoId}:
+    parameters:
+      - name: conjuntoId
+        in: path
+        required: true
+        description: Identificador de conjunto propuesto; formato pendiente de validación.
+        schema:
+          type: string
+    get:
+      tags: [Proceso]
+      operationId: obtenerConjunto
+      summary: Consultar un conjunto persistido
+      description: Ruta y formato propuestos; se requiere consultar conjuntos disponibles.
+      responses:
+        '200':
+          description: Conjunto encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessSet'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Proceso]
+      operationId: eliminarConjunto
+      summary: Eliminar un conjunto de referencia
+      description: |
+        Ruta propuesta. Solo docente puede eliminar conjuntos de referencia.
+        Confirmar restricciones adicionales y código de respuesta con el equipo
+        antes de congelar el contrato (P-03).
+      responses:
+        '204':
+          description: Conjunto eliminado.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token JWT emitido por Keycloak.
+  schemas:
+    AlgorithmCatalog:
+      type: object
+      required: [algorithms]
+      properties:
+        algorithms:
+          type: array
+          description: Identificadores dinámicos; no usar una enumeración cerrada.
+          items:
+            $ref: '#/components/schemas/Algorithm'
+    Algorithm:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Identificador publicado por la biblioteca; no está limitado a los cuatro algoritmos base.
+    Process:
+      type: object
+      description: |
+        Proceso de CPU. El uso de PID entero sigue la estructura C de referencia;
+        validar su representación frente a los identificadores de wireframe antes
+        de congelar el contrato.
+      required: [pid, arrivalTime, burstTime, priority]
+      properties:
+        pid:
+          type: integer
+          minimum: 0
+          description: Identificador único dentro del conjunto. -1 queda reservado para CPU ociosa en la salida C.
+        arrivalTime:
+          type: integer
+          minimum: 0
+          description: Tiempo de llegada.
+        burstTime:
+          type: integer
+          minimum: 1
+          description: Duración de la ráfaga de CPU.
+        priority:
+          type: integer
+          description: Menor valor significa mayor prioridad; aplicación como desempate pendiente de definición por algoritmo.
+    PlanificationRequest:
+      type: object
+      required: [algorithmId, processes]
+      properties:
+        algorithmId:
+          type: string
+          minLength: 1
+          description: Identificador dinámico obtenido del catálogo.
+        processes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Process'
+          description: Carga completa enviada por Angular, aunque no esté persistida en proceso-service.
+        quantum:
+          type: integer
+          minimum: 1
+          description: Quantum para Round Robin; el servicio debe validar su presencia cuando corresponda.
+        sourceSetId:
+          type: string
+          description: |
+            Referencia opcional al conjunto persistido del que procede la carga.
+            El formato y el uso en el historial son propuestas por validar.
+    ComparisonRequest:
+      type: object
+      required: [algorithmIds, processes]
+      properties:
+        algorithmIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          description: Identificadores solicitados del catálogo dinámico; sin enum cerrada.
+        processes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Process'
+        quantum:
+          type: integer
+          minimum: 1
+          description: Quantum para Round Robin; el servicio debe validar su presencia cuando corresponda.
+        sourceSetId:
+          type: string
+          description: Referencia opcional a un conjunto persistido; formato pendiente.
+    TimelineSegment:
+      oneOf:
+        - $ref: '#/components/schemas/ExecutionSegment'
+        - $ref: '#/components/schemas/IdleInterval'
+      discriminator:
+        propertyName: kind
+        mapping:
+          execution: '#/components/schemas/ExecutionSegment'
+          idle: '#/components/schemas/IdleInterval'
+    ExecutionSegment:
+      type: object
+      required: [kind, pid, start, end]
+      properties:
+        kind:
+          type: string
+          enum: [execution]
+        pid:
+          type: integer
+          minimum: 0
+        start:
+          type: integer
+          minimum: 0
+        end:
+          type: integer
+          minimum: 1
+          description: Fin del intervalo, estrictamente posterior a start.
+      description: |
+        Intervalo de ejecución. Un proceso puede aparecer en varios segmentos
+        no contiguos por desalojo (SRTF) o turnos (Round Robin).
+    IdleInterval:
+      type: object
+      required: [kind, start, end]
+      properties:
+        kind:
+          type: string
+          enum: [idle]
+        start:
+          type: integer
+          minimum: 0
+        end:
+          type: integer
+          minimum: 1
+          description: Fin del intervalo, estrictamente posterior a start.
+      description: Intervalo donde la CPU está ociosa.
+    ProcessMetrics:
+      type: object
+      required: [pid, arrivalTime, burstTime, completionTime, turnaroundTime, waitingTime, responseTime]
+      properties:
+        pid:
+          type: integer
+        arrivalTime:
+          type: integer
+          minimum: 0
+        burstTime:
+          type: integer
+          minimum: 1
+        completionTime:
+          type: integer
+          minimum: 0
+        turnaroundTime:
+          type: integer
+          minimum: 0
+          description: Tiempo de retorno.
+        waitingTime:
+          type: integer
+          minimum: 0
+          description: Tiempo de espera.
+        responseTime:
+          type: integer
+          minimum: 0
+          description: Tiempo hasta la primera ejecución en CPU.
+    AverageMetrics:
+      type: object
+      required: [waitingTime, turnaroundTime, responseTime]
+      properties:
+        waitingTime:
+          type: number
+          minimum: 0
+        turnaroundTime:
+          type: number
+          minimum: 0
+        responseTime:
+          type: number
+          minimum: 0
+    PlanificationResult:
+      type: object
+      required: [algorithmId, segments, processMetrics, averages]
+      properties:
+        algorithmId:
+          type: string
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimelineSegment'
+          description: Línea de tiempo en orden temporal, incluyendo intervalos ociosos.
+        processMetrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessMetrics'
+        averages:
+          $ref: '#/components/schemas/AverageMetrics'
+    PlanificationRecord:
+      allOf:
+        - $ref: '#/components/schemas/PlanificationResult'
+        - type: object
+          required: [planificationId, createdAt, processes]
+          properties:
+            planificationId:
+              type: string
+              description: Identificador propuesto para la corrida; formato pendiente de validación.
+            createdAt:
+              type: string
+              format: date-time
+            sourceSetId:
+              type: string
+              description: Referencia opcional al conjunto persistido de origen.
+            processes:
+              type: array
+              items:
+                $ref: '#/components/schemas/Process'
+              description: Snapshot de entrada propuesto para conservar corridas temporales.
+    ComparisonRecord:
+      type: object
+      required: [comparisonId, createdAt, results, bestByMetric]
+      properties:
+        comparisonId:
+          type: string
+          description: Identificador propuesto para la comparación.
+        createdAt:
+          type: string
+          format: date-time
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanificationRecord'
+        bestByMetric:
+          type: object
+          description: Algoritmos con menor promedio por métrica; empates pueden devolver varios identificadores.
+          required: [waitingTime, turnaroundTime, responseTime]
+          properties:
+            waitingTime:
+              type: array
+              items:
+                type: string
+            turnaroundTime:
+              type: array
+              items:
+                type: string
+            responseTime:
+              type: array
+              items:
+                type: string
+    PlanificationHistory:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanificationRecord'
+          description: Solo registros cuyo propietario coincide con el sub autenticado.
+    ProcessSetInput:
+      type: object
+      required: [name, processes]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        processes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Process'
+          description: PID únicos dentro del conjunto; la validación de unicidad corresponde al servicio.
+    ProcessSet:
+      allOf:
+        - $ref: '#/components/schemas/ProcessSetInput'
+        - type: object
+          required: [conjuntoId]
+          properties:
+            conjuntoId:
+              type: string
+              description: Identificador asignado por proceso-service; formato pendiente de validación.
+    ProcessSetList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessSet'
+    ValidationIssue:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+        expected:
+          type: string
+        rejectedValue:
+          type: string
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Código de error propuesto; catálogo por validar.
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+  responses:
+    BadRequest:
+      description: Solicitud inválida, validación fallida o algoritmo no disponible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: Falta un JWT válido o no pudo validarse.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: El usuario autenticado carece del rol requerido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: El recurso no existe o no está disponible para el usuario; semántica por validar para historial propio.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Conflicto de datos, por ejemplo identificador duplicado; condiciones por validar.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ServerError:
+      description: Error interno al procesar la solicitud.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
