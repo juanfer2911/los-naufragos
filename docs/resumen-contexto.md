@@ -1,7 +1,7 @@
 # Resumen de contexto y continuidad
 
 **Proyecto:** Los Náufragos — Planificador de procesos PI  
-**Última revisión del estado real:** 2026-10-20  
+**Última revisión del estado real:** 2026-10-21
 **Propósito de este archivo:** resumir el estado verificable para que el equipo y un agente posterior puedan continuar sin confundir decisiones, propuestas documentales e implementación.
 
 Este documento vivo no sustituye la bitácora. `docs/bitacora-decisiones.md` conserva las decisiones y sus razones; este resumen describe el estado actual observado, las tareas pendientes y la siguiente acción recomendada. Si ambos documentos difieren, verificar con el equipo y no reescribir silenciosamente el historial.
@@ -27,7 +27,7 @@ Estas son decisiones confirmadas por el equipo y registradas en la bitácora act
 - **Origen de una simulación:** Angular envía la lista completa de procesos en el cuerpo de `POST /planificaciones`; no hace falta que la carga esté persistida en `proceso-service`.
 - **Algoritmos base:** FCFS/FIFO, SJF no expropiativo, SRTF expropiativo y Round Robin con quantum configurable.
 - **Catálogo dinámico:** `listar_algoritmos()` de la biblioteca C alimenta `GET /algoritmos`. No se deben fijar listas cerradas en Angular o en la lógica de negocio Java. Añadir un algoritmo en C es un requisito de diseño aún no implementado ni comprobado.
-- **Prioridad:** es un atributo numérico, no un algoritmo adicional. Menor número significa mayor prioridad. Regla de desempate confirmada: primero menor número de prioridad; si empatan, menor tiempo de llegada; si también empatan, se respeta el orden original de entrada. Sigue pendiente concretar su aplicación en los puntos de decisión de cada algoritmo sin alterar su política propia.
+- **Prioridad:** es un atributo numérico, no un algoritmo adicional. Menor número significa mayor prioridad. La regla general confirmada indica prioridad, llegada y orden original. Para **FCFS/FIFO**, el equipo precisó el 2026-10-21 que prevalece la llegada; solo entre procesos con igual llegada se usa menor número de prioridad y, si también empatan, orden original. Esto conserva FCFS estricto; la aplicación concreta de la regla en SJF, SRTF y Round Robin sigue pendiente.
 - **Entorno:** Docker Compose es para integración local; Docker Swarm es el objetivo de despliegue. No crear manifiestos de Kubernetes.
 - **Benchmarks:** son suites independientes con scripts separados en `tests/`:
   - Web 2: cargas de 50, 500, 5.000 y 50.000 procesos, 30 repeticiones por carga y mediana del tiempo de respuesta.
@@ -58,15 +58,19 @@ La decisión de dos servicios no se considera pendiente aunque el enunciado gene
 │   ├── README.md
 │   ├── docker-compose.yml
 │   └── postgres/init/01-create-databases.sql
-├── native/                          # Vacía; no hay include/, src/ ni tests/
+├── native/
+│   ├── include/planificador.h        # API nativa para la implementación y prueba local
+│   ├── src/planificador.c            # Implementación FCFS/FIFO
+│   ├── tests/test_planificador.c     # Pruebas FCFS/FIFO compiladas y ejecutadas en WSL
+│   └── Makefile                     # Compilación local en C11
 ├── tests/                           # Vacía; no hay suites ni scripts
 ├── .gitignore
 └── README.md
 ```
 
-**No existen todavía** `backend/proceso-service/`, `backend/planificador-service/`, `native/include/`, `native/src/` ni `native/tests/`. No se encontraron archivos `.gitkeep`. La búsqueda encontró cero archivos en `frontend/`, `backend/`, `native/` y `tests/`.
+**No existen todavía** `backend/proceso-service/` ni `backend/planificador-service/`. `frontend/`, `backend/` y la carpeta superior `tests/` siguen sin archivos. El FCFS/FIFO nativo y sus pruebas existen y se compilaron/ejecutaron con éxito en Ubuntu/WSL. No existe aún `libplanificador.so`.
 
-Git sí está inicializado en la rama `main`, que sigue a `origin/main`. Al revisar, el árbol de trabajo no estaba limpio: `docs/bitacora-decisiones.md` aparecía modificada, `docs/openapi.yaml` e `infra/` como no rastreados, y `.idea/inspectionProfiles/` como contenido no rastreado del IDE. No se debe atribuir ni descartar esos cambios sin revisar su procedencia.
+Git está inicializado en la rama `feature/juanfer`, que sigue a `origin/feature/juanfer`. Al cierre de esta tarea, `docs/resumen-contexto.md` está modificado y los cuatro archivos nuevos de `native/` aún no están rastreados; no se creó ningún commit.
 
 ## 4. Tecnologías y versiones
 
@@ -75,7 +79,7 @@ Git sí está inicializado en la rama `main`, que sigue a `origin/main`. Al revi
 | Angular 17 o superior, standalone y signals | Rango acordado y documentado en la bitácora. No hay `package.json`, fuentes ni proyecto Angular; versión instalada/configurada **no verificada**. |
 | Java 21 LTS | Versión acordada en la bitácora. No hay build del backend ni configuración de proyecto; uso por los servicios **no verificado**. |
 | Spring Boot 3.2 o superior compatible con Java 21 | Rango acordado; no hay `pom.xml`, `build.gradle` ni microservicios. Versión exacta **pendiente**. |
-| C con GCC, estándar C11 o C17 | Alternativas/rango acordados; no hay fuente, Makefile ni biblioteca. Estándar elegido y compilación **pendientes**. |
+| C con GCC, estándar C11 o C17 | `native/Makefile` solicita C11. FCFS/FIFO y las pruebas compilaron y pasaron en Ubuntu/WSL con GCC/Make. No se generó `libplanificador.so`; el estándar/ABI definitivo para JNA sigue **pendiente**. |
 | JNA 5.x | Rango acordado; no hay dependencia Java configurada ni interfaz JNA. Versión exacta **pendiente**. |
 | PostgreSQL 16 | Versión mayor acordada. `infra/docker-compose.yml` fija `postgres:16.4`; el archivo pasa la validación estática de Compose, pero contenedor y base **no verificados en ejecución**. |
 | Keycloak 24 o superior | Mínimo acordado. Compose fija `quay.io/keycloak/keycloak:25.0.6`, conectado a PostgreSQL. No se comprobó que el contenedor iniciara ni existe importación del realm de aplicación. |
@@ -89,21 +93,22 @@ Estados utilizados en la tabla: **Completado**, **En progreso**, **Pendiente** y
 
 | Área o tarea | Estado | Evidencia | Siguiente paso |
 |---|---|---|---|
-| Git | **Completado** | `git rev-parse` confirma repositorio; rama `main` con upstream `origin/main`. El árbol tenía cambios locales/no rastreados al revisarlo. | Revisar procedencia y alcance de los cambios antes de preparar cualquier commit. |
-| Estructura base | **En progreso** | Existen `frontend/`, `backend/`, `native/`, `infra/`, `tests/` y `docs/`; las cuatro áreas de código/pruebas están vacías. Faltan carpetas de servicios y subcarpetas nativas previstas. | Crear la estructura restante cuando corresponda, sin confundir carpetas con implementación. |
+| Git | **Completado** | Repositorio inicializado en `feature/juanfer`, que sigue a `origin/feature/juanfer`. Al cierre de esta tarea hay modificaciones locales en el resumen y cuatro archivos nativos nuevos sin rastrear; no se creó commit. | Revisar el diff antes de decidir si se versionan estos cambios. |
+| Estructura base | **En progreso** | Existen `frontend/`, `backend/`, `native/`, `infra/`, `tests/` y `docs/`. `frontend/`, `backend/` y la carpeta superior `tests/` no tienen archivos; `native/` ya contiene el módulo FCFS/FIFO local. | Crear las carpetas de los dos servicios cuando corresponda; no confundir código nativo aislado con los microservicios. |
 | Documentación | **En progreso** | Están README, ADD, bitácora, fuentes originales, wireframes y este resumen. README y ADD aún expresan algunas decisiones como pendientes o sin resolver que la bitácora ya confirma. | Revisar esa deriva en una tarea documental autorizada; preservar las fuentes originales. |
 | OpenAPI | **En progreso** | `docs/openapi.yaml` declara 9 operaciones. YAML parseado; 19 esquemas, 6 respuestas y referencias internas comprobadas; 9 `operationId` únicos. La mayoría de rutas/campos son propuestas pendientes de validación. | Revisar y aprobar el contrato con el equipo antes de implementarlo. No hay endpoints implementados. |
 | Docker Compose y SQL | **En progreso** | Compose contiene solo `postgres` y `keycloak`; `docker compose config --quiet` pasó. Hay SQL de inicialización y `.env.example`. El `.env` local no existe. | Iniciar Docker Desktop y comprobar la base/Keycloak; ejecutar y verificar el SQL. No se ha hecho. |
-| Núcleo C | **Pendiente** | `native/` no contiene archivos; no hay cabecera, fuentes, pruebas ni `libplanificador.so`. | Cerrar reglas concretas de empate y contrato ABI, preparar oráculos manuales y luego comenzar por FIFO. |
+| FCFS/FIFO nativo | **Completado** | Los cuatro archivos de `native/` implementan FCFS/FIFO y casos de prueba; `make -C native clean` seguido de `make -C native test` pasó en Ubuntu/WSL y mostró `OK: pruebas FCFS/FIFO`. El ejecutable se limpió después. | Conservar el resultado como evidencia de prueba local; aún no representa RF-03 completo ni aceptación oficial del profesor. |
+| Núcleo C completo | **En progreso** | Solo está implementado y probado FCFS/FIFO. SJF, SRTF, Round Robin y la biblioteca compartida aún no existen. | Continuar con los algoritmos restantes según contratos y oráculos aprobados; preparar construcción de `libplanificador.so`. |
 | Integración JNA | **Pendiente** | No hay proyecto Java, dependencia JNA, estructuras mapeadas ni adaptador. | Implementar después de acordar el contrato C/JNA y validar una corrida nativa independiente. |
 | Microservicios | **Pendiente** | `backend/` está vacío; no existen los dos proyectos Spring Boot. | Crear exactamente `proceso-service` y `planificador-service` cuando se aprueben contratos y versiones. |
 | Seguridad Keycloak/JWT | **Pendiente** | No existe realm de aplicación ni configuración de clientes/resource servers. Compose solo prepara el servicio Keycloak. | Crear/importar realm y validar autenticación/autorización en ambos servicios en su fase. |
 | Frontend Angular | **Pendiente** | `frontend/` está vacío; no hay manifiestos ni componentes. | Implementar tras acordar API y flujos de autenticación; obtener catálogo desde la API, sin lista fija. |
 | Persistencia e historial | **Pendiente** | Compose/SQL proponen bases y roles separados, pero no están ejecutados; no hay esquema ni código de persistencia. | Verificar la infraestructura y acordar campos/retención del historial antes de persistirlo en `planificador-service`. |
-| Pruebas | **Pendiente** | `tests/` y `native/` no contienen pruebas ni scripts; no se encontraron suites JUnit o C. | Crear oráculos manuales y las suites independientes según requisitos. |
+| Pruebas | **En progreso** | La suite C de FCFS/FIFO compiló y pasó en Ubuntu/WSL. Cubre llegadas distintas/empatadas, desempates FIFO, ociosidad, un proceso, capacidad insuficiente y ráfaga cero. No hay suites Java, integración ni aceptación de los ocho requisitos. | Mantener la evidencia de la salida real y ampliar las pruebas junto con cada algoritmo y requisito; no extrapolar el resultado de FIFO al sistema completo. |
 | Benchmarks | **Pendiente** | No hay scripts, datos, resultados ni mediciones. Solo existen protocolos documentados. | Implementar scripts separados y registrar resultados reproducibles al disponer de motores equivalentes. |
 
-**Verificaciones ejecutadas:** la configuración de Compose pasa `docker compose config --quiet`; los servicios declarados son solo PostgreSQL y Keycloak. El YAML de OpenAPI se pudo parsear con el parser YAML disponible y se revisaron referencias internas y unicidad de `operationId`; no había validador OpenAPI dedicado. `docker compose ps` no pudo conectarse al motor Docker Desktop (`dockerDesktopLinuxEngine` no disponible). No se ejecutaron contenedores, SQL, pruebas funcionales, compilaciones ni benchmarks.
+**Verificación repetida el 2026-10-21:** desde WSL se ejecutaron `make -C native clean`, `make -C native test` y una limpieza posterior. GCC compiló con `-std=c11 -Wall -Wextra -Werror -pedantic -O2`; los casos pasaron y la salida final fue `OK: pruebas FCFS/FIFO`, con segmentos Gantt y métricas impresos. El binario generado se eliminó con `make clean`. Esto verifica el código y prueba local de FCFS/FIFO en ese entorno; no verifica `libplanificador.so`, JNA, HTTP, microservicios, contenedores ni otros algoritmos. Compose/OpenAPI no se volvieron a ejecutar.
 
 ## 6. Roadmap de trabajo
 
@@ -113,7 +118,7 @@ El roadmap conserva las etapas y dependencias de la guía maestra. Las propuesta
 
 - **Completado:** Git inicializado y `.gitignore` de raíz presente.
 - **En progreso:** existen las carpetas superiores `frontend/`, `backend/`, `native/`, `infra/`, `tests/` y `docs/`, pero la estructura base todavía está incompleta.
-- **Pendiente:** crear las carpetas acordadas `backend/proceso-service/`, `backend/planificador-service/`, `native/include/`, `native/src/` y `native/tests/`; añadir `.gitkeep` solo si se necesita versionar carpetas vacías.
+- **Pendiente:** crear las carpetas `backend/proceso-service/` y `backend/planificador-service/`; no se necesitan más subcarpetas nativas para la tarea actual.
 - **Criterio de cierre:** las carpetas previstas existen con nombres correctos y los cambios locales se han revisado. Esto cierra la preparación de estructura, no la implementación funcional.
 
 ### Fase 1 — Contratos y entorno local
@@ -125,7 +130,9 @@ El roadmap conserva las etapas y dependencias de la guía maestra. Las propuesta
 ### Fase 2 — Núcleo nativo
 
 - **Completado:** requisitos y algoritmo base identificados en los documentos.
-- **Pendiente:** contrato ABI, tamaños/límites, gestión de memoria, códigos de error, reglas de desempate por algoritmo, seis resultados manuales, biblioteca, algoritmos C, suite y compilación de `libplanificador.so`.
+- **En progreso:** FCFS/FIFO tiene fuente, cabecera y casos de prueba locales. El orden FIFO se confirmó: llegada primero; en igual llegada, prioridad ascendente y luego orden original. Esta interfaz nativa aún no constituye el ABI JNA aprobado.
+- **Completado y verificado:** FCFS/FIFO local y su prueba reproducible pasaron con GCC/Make en WSL.
+- **Pendiente:** contrato ABI, tamaños/límites, gestión de memoria, códigos de error, reglas de desempate para SJF/SRTF/RR, oráculos oficiales, biblioteca `libplanificador.so`, algoritmos SJF/SRTF/RR y sus suites.
 - **Criterio de cierre:** FIFO, SJF, SRTF y Round Robin coinciden en segmentos completos y métricas con oráculos manuales; pruebas nativas independientes ejecutables en menos de 30 segundos.
 
 ### Fase 3 — Integración Java/JNA
@@ -184,13 +191,15 @@ El roadmap conserva las etapas y dependencias de la guía maestra. Las propuesta
 
 La especificación declara bearer JWT a nivel global y esquemas reutilizables para procesos, segmentos de ejecución, intervalos ociosos, métricas, promedio, historial y errores. No enumera algoritmos de forma cerrada. Las horas/segmentos, respuestas HTTP, campos de conjunto/historial, formato de PID frente a los wireframes, comportamiento de comparación y errores siguen sujetos a revisión. **Ninguna de estas rutas está implementada.**
 
-El contrato C/JNA todavía no existe: no se encontró cabecera C pública, documento ABI, estructura compilable ni adaptador Java. No iniciar esa integración hasta fijar orden y alineación de estructuras, tamaños máximos, propiedad/liberación de memoria y códigos de error.
+El contrato C/JNA todavía no existe como ABI aprobado. `native/include/planificador.h` define la interfaz local usada por esta implementación y prueba; siguen pendientes el documento ABI, el acuerdo de estructuras/alineación, límites, propiedad/liberación de memoria, códigos de error y el adaptador Java. No iniciar la integración JNA hasta fijar esos puntos.
 
 ## 8. Pruebas y benchmarks
 
-- No se encontraron scripts de prueba, casos manuales versionados, pruebas C, pruebas JUnit ni pruebas de integración.
-- No se encontraron datos de benchmark, resultados crudos, medianas ni informes de usabilidad.
-- No se ejecutó ninguna prueba funcional o benchmark.
+- Se creó `native/tests/test_planificador.c` con casos de desarrollo para FCFS/FIFO: llegadas distintas y empatadas, prioridad y orden de entrada en empate de llegada, CPU ociosa al inicio y entre procesos, un proceso, capacidad insuficiente y ráfaga inválida. Los resultados esperados se calcularon para esta prueba, no proceden de documentos del profesor.
+- Verificación repetida en Ubuntu/WSL el 2026-10-21: `make -C native clean` y `make -C native test` pasaron con GCC; se imprimieron el Gantt, periodos ociosos, métricas y `OK: pruebas FCFS/FIFO`. Se limpió luego el ejecutable generado. No se ha construido una biblioteca compartida.
+- No hay casos manuales oficiales versionados, pruebas JUnit ni pruebas de integración.
+- No se encontraron scripts de benchmark, datos, resultados crudos, medianas ni informes de usabilidad.
+- No se ejecutaron pruebas Java, de integración, de aceptación de los ocho requisitos ni benchmarks; sí se ejecutó y pasó la suite nativa FCFS/FIFO descrita arriba.
 - La única validación de infraestructura observada es el parseo de configuración de Compose, que pasó sin iniciar contenedores.
 - La sintaxis YAML de OpenAPI pudo parsearse con el parser disponible; sus referencias internas (19 esquemas y 6 respuestas) se resolvieron y los 9 `operationId` son únicos. Esto no equivale a validar el documento con un validador OpenAPI dedicado.
 - El protocolo de Web 2 está especificado como 50, 500, 5.000 y 50.000 procesos, 30 repeticiones y mediana.
@@ -198,27 +207,29 @@ El contrato C/JNA todavía no existe: no se encontró cabecera C pública, docum
 
 ## 9. Problemas, riesgos y decisiones pendientes
 
-1. **Reglas concretas de prioridad por algoritmo:** la regla general de tres niveles está confirmada; falta especificar dónde aplica dentro de FCFS/FIFO, empate de ráfaga en SJF, empate de tiempo restante en SRTF y orden/reingreso de Round Robin, sin convertirlos implícitamente en planificación por prioridad.
+1. **Reglas concretas de prioridad por algoritmo:** FCFS/FIFO ya tiene política confirmada para esta etapa: llegada primero; con igual llegada, menor prioridad numérica y luego orden original. Falta especificar la aplicación en empates de ráfaga para SJF, empates de tiempo restante para SRTF y orden/reingreso de Round Robin, sin convertirlos implícitamente en planificación por prioridad.
 2. **Contrato C/JNA:** firmas ABI, alineación, límites, memoria y tabla de errores pendientes.
-3. **OpenAPI:** endpoints, esquemas y códigos propuestos requieren aprobación; la comprobación realizada no fue una validación OpenAPI formal.
+3. **OpenAPI:** endpoints, esquemas y códigos propuestos requieren aprobación; la comprobación realizada no fue una validación OpenAPI formal. El borrador ya propone HTTP 400 con `application/json` y `ApiError`, pero no está aprobado ni probado. `POST /conjuntos` está descrito como registro de conjuntos de referencia solo por docente, mientras RF-02 pide guardar/recuperar conjuntos de prueba con nombre; confirmar si se trata del mismo tipo de conjunto, sus permisos y endpoints.
 4. **Historial:** ubicación y propiedad por usuario están confirmadas; aún falta acordar campos exactos, retención, snapshots y semántica al pedir una corrida ajena.
 5. **Stack:** siguen pendientes elecciones exactas dentro de los rangos acordados (Spring Boot, Angular, JNA y C11/C17).
 6. **Documentación desactualizada:** `README.md` todavía dice que la discrepancia de dos/tres servicios está pendiente y lista versiones y decisiones ya resueltas como pendientes. `docs/arquitectura-add.md` también mantiene como pendientes el número de servicios, prioridad, origen de procesos, historial y orquestador. No se modificaron en esta tarea; corregirlos requiere una tarea documental separada.
 7. **Infraestructura no ejecutada:** el Compose pasa validación estática, pero `docker compose ps` no pudo conectar con Docker Desktop (`dockerDesktopLinuxEngine` no disponible). No hay `infra/.env` local; SQL, Keycloak, persistencia y salud en ejecución no están verificados.
 8. **Deriva Git:** el árbol tenía cambios locales y archivos no rastreados. Revisar antes de preparar cambios o commits; en particular, no eliminar la configuración `.idea/inspectionProfiles/` sin conocer su procedencia.
+9. **Aceptación de persistencia:** Compose define el volumen nombrado `postgres_data`, pero no incluye `proceso-service`; la prueba RF-01 de recuperar cinco procesos tras reiniciar el contenedor todavía requiere implementar/integrar el servicio y ejecutar Docker.
+10. **Comparación dinámica:** OpenAPI propone `POST /comparaciones` con una lista `algorithmIds`. RF-07 pide comparar todos los algoritmos con la misma entrada; implementar el consumo del catálogo dinámico y aprobar si el servicio recibe todos los identificadores explícitamente o los resuelve desde el catálogo, sin listas cerradas en Angular.
 
 La decisión de exactamente dos microservicios está confirmada por el profesor y **no se reabre como tarea de arquitectura**. La regla de prioridad de tres niveles también está confirmada; solo resta especificar su aplicación por algoritmo.
 
 ## 10. Próxima tarea recomendada
 
-**Acordar la forma y los datos de los casos de referencia antes de programar FIFO en C.**
+**Definir y aprobar el contrato mínimo C/JNA y construir `libplanificador.so` sin cambiar la política FCFS/FIFO.**
 
-Los documentos sí especifican seis categorías para los casos Web 2: llegadas simultáneas, empate de ráfaga, hueco de CPU ociosa, quantum mayor que la ráfaga más larga, un solo proceso y prioridades repetidas. También exigen resultados esperados calculados manualmente. No incluyen los valores concretos de entrada ni las salidas esperadas. Hay una diferencia de alcance que debe aclararse: el documento específico de Web 2 menciona que el docente entrega un conjunto desconocido de seis procesos y, además, pide verificar seis conjuntos de control (uno por categoría); el documento del núcleo nativo describe conjuntos de referencia de tres a cinco procesos. No asumir que esas frases describen el mismo conjunto ni fabricar valores para suplirlos.
+La prueba local de FCFS/FIFO ya pasó en WSL. Antes de integrar Java, el equipo aún debe aprobar firmas, tipos/alineación, límites, propiedad y liberación de memoria y códigos de error para JNA. La interfaz actual de `planificador.h` es de prueba local, no un ABI aprobado.
 
-- **Archivo/componente:** preparar la especificación de casos en `tests/` o en el documento de pruebas que acuerde el equipo; `tests/` está vacío. Antes de convertirla en datos de prueba, confirmar si se requieren seis conjuntos borde separados además de un conjunto de seis procesos para la sustentación, y acordar quién aporta o calcula manualmente sus entradas y resultados.
-- **Resultado esperado:** alcance confirmado y oráculos con segmentos completos y métricas manuales. La regla general de prioridad permanece confirmada —menor número, luego menor llegada y finalmente orden original—; solo se debe precisar cómo se aplica en los puntos de decisión de cada algoritmo, especialmente en el caso de prioridades repetidas, sin cambiar sus políticas ni inventar una regla para el orden/reingreso de Round Robin.
-- **Cómo comprobarlo:** validar el alcance con el equipo/docente, revisar manualmente los cálculos y confirmar que las categorías prescritas están cubiertas. Los oráculos deben quedar disponibles para las pruebas nativas y Java antes de implementar.
-- **No modificar durante esta tarea:** documentos originales, decisiones confirmadas de exactamente dos microservicios y sin API Gateway, regla general de prioridad, contrato OpenAPI, Compose/SQL y código funcional. Después de cerrar los casos y los detalles pendientes del contrato C/JNA, la siguiente actividad de implementación será FIFO en C probado independientemente.
+- **Archivo/componente:** contrato nativo en `native/include/planificador.h` y futura configuración de compilación de `libplanificador.so`; especificación de mapeo JNA aislada en el futuro `planificador-service`.
+- **Resultado esperado:** acuerdo documentado que permite una llamada C→Java sin ambigüedad de estructura, capacidad, memoria o error. La generación de la biblioteca y las llamadas JNA se implementarán/verificarán después del acuerdo.
+- **Cómo comprobarlo:** revisión conjunta de una firma y estructuras concretas, compilación de biblioteca compartida en Linux y prueba aislada desde Java usando JNA; mantener pasando `make -C native test`.
+- **No modificar durante esta tarea:** la política y pruebas FCFS/FIFO ya verificadas, documentos originales, decisiones de dos microservicios y sin API Gateway; no implementar otro algoritmo ni frontend o persistencia en el mismo cambio.
 
 ## 11. Instrucciones para el siguiente agente de IA
 
@@ -236,3 +247,34 @@ Los documentos sí especifican seis categorías para los casos Web 2: llegadas s
 ### Prompt de recuperación
 
 > Estoy trabajando en el repositorio `los-naufragos`. Lee primero `docs/resumen-contexto.md` y después consulta la bitácora si necesitas conocer las razones de las decisiones. Verifica el estado real de los archivos y dime cuál es la siguiente tarea recomendada. Explícame cómo realizarla paso a paso y no modifiques archivos sin explicarme primero qué vas a cambiar
+
+## Backlog funcional de Jira
+
+Este resumen organiza los ocho requisitos funcionales proporcionados por el equipo. No se confirmó acceso directo a Jira ni se verificó el estado de sus tickets. RF-03 está **En progreso**: el núcleo FCFS/FIFO local está implementado y su prueba pasó, pero faltan la biblioteca compartida, JNA, `POST /planificaciones` y aceptación de extremo a extremo. Los otros siete requisitos están **Pendiente**.
+
+| ID / requisito | Objetivo | Componentes implicados | Criterio principal de aceptación | Estado |
+|---|---|---|---|---|
+| RF-01 — Registrar y persistir procesos/conjuntos | Registrar procesos con identificadores únicos dentro del conjunto y persistirlos. | `frontend/`, `proceso-service`, PostgreSQL, Compose. | Recuperar un conjunto de cinco procesos después de reiniciar el contenedor y comprobar que los datos se conservan. | **Pendiente** |
+| RF-02 — Guardar y recuperar conjuntos de prueba con nombre | Guardar un conjunto nombrado y recuperarlo usando los endpoints de conjuntos correspondientes. | `frontend/`, API de `proceso-service`, PostgreSQL. | Guardar y volver a cargar el mismo conjunto por su nombre mediante los endpoints acordados. | **Pendiente** |
+| RF-03 — Ejecutar FIFO en C mediante JNA | Ejecutar `POST /planificaciones` con FIFO en C integrado desde Java mediante JNA. | `planificador-service`, `libplanificador.so`, JNA, validación del JWT. | Los tiempos de los segmentos devueltos coinciden exactamente con el diagrama de Gantt de referencia. El FIFO C local está probado; HTTP/JNA no están implementados. | **En progreso** |
+| RF-04 — Quantum configurable para Round Robin | Permitir cambiar el quantum en cada corrida sin compilar de nuevo. | `frontend/`, `planificador-service`, API, núcleo C/JNA. | Ejecutar la misma entrada con quantum 2 y 5 y comparar resultados sin recompilar. | **Pendiente** |
+| RF-05 — Diagrama de Gantt con ociosidad | Mostrar segmentos de ejecución y periodos de CPU ociosa. | `frontend/`, respuesta de `planificador-service`. | Visualizar ocho procesos a 1366 px sin desplazamiento horizontal, distinguiendo cada segmento y los periodos ociosos. | **Pendiente** |
+| RF-06 — Métricas por proceso y promedios | Calcular espera, retorno y respuesta por proceso y sus promedios en el backend. | `planificador-service`, núcleo/motor de planificación, `frontend/`. | Verificar los valores y promedios con resultados manuales; Angular presenta, no calcula los promedios. | **Pendiente** |
+| RF-07 — Comparar algoritmos sobre la misma entrada | Ejecutar todos los algoritmos con la misma entrada y comparar sus métricas promedio. | `planificador-service`, catálogo dinámico, núcleo C/JNA o motor Java, `frontend/`. | Mostrar la comparación común e identificar el algoritmo con mejor métrica promedio según el criterio aprobado. | **Pendiente** |
+| RF-08 — Validar entradas con errores HTTP 400 JSON | Validar ráfaga > 0, llegada ≥ 0 y quantum ≥ 1. | Validación en Angular y autoritativa en `planificador-service`/API. | Cada dato inválido responde HTTP 400 con JSON de error; el formato exacto de ese JSON debe quedar en el contrato aprobado. | **Pendiente** |
+
+**Base de los criterios:** *Los Náufragos – Planificador de procesos*, PDF, pp. 5–6, RF-01 a RF-08. Los componentes se asignan según las responsabilidades arquitectónicas confirmadas en este resumen. CPU ociosa se devuelve como parte de la línea de tiempo; no se añade un servicio para ello.
+
+### Secuencia recomendada para implementar el backlog
+
+**Estado de las condiciones previas:** la regla concreta de FCFS/FIFO fue confirmada y el núcleo local pasó sus pruebas creadas para desarrollo. El contrato C/JNA, los oráculos oficiales y el contrato HTTP siguen pendientes; no se atribuyen los valores de desarrollo al profesor ni se consideran aceptación de RF-03.
+
+1. **Núcleo C: FCFS/FIFO — Implementado y verificado localmente.** `native/include/planificador.h`, `native/src/planificador.c`, `native/tests/test_planificador.c` y `native/Makefile` compilaron y pasaron en WSL. No hay biblioteca compartida verificada.
+2. **Completar la suite del núcleo.** Añadir SJF, SRTF y Round Robin al núcleo y pruebas de referencia de la línea de tiempo completa; comprobar llegada, CPU ociosa, quantum y desempates según los casos aprobados.
+3. **Integración Java/JNA.** Mapear el ABI acordado en una interfaz aislada y validar un caso de extremo a extremo C→JNA; implementar el motor Java de referencia y comprobar equivalencia funcional.
+4. **`planificador-service`.** Implementar el adaptador de motor, validación/backend y las operaciones de planificación y catálogo según el OpenAPI revisado; calcular promedios en backend y persistir historial asociado al `sub`.
+5. **`proceso-service` y persistencia de conjuntos.** Administrar procesos y conjuntos, validar unicidad y entradas, y verificar persistencia tras reinicio. Una corrida individual sigue recibiendo la carga completa de Angular y no depende de que esté guardada.
+6. **Seguridad e integración de interfaz.** Configurar Keycloak/JWT y permisos en ambos servicios; conectar Angular para capturar/cargar datos, seleccionar algoritmos desde el catálogo dinámico, ejecutar/comparar, presentar Gantt y métricas, y comunicar validaciones.
+7. **Aceptación funcional y evidencias.** Ejecutar los ocho criterios del backlog, casos manuales y pruebas de integración. Mantener separados los dos protocolos de benchmark. Registrar resultados únicamente después de ejecutarlos.
+
+La secuencia mantiene exactamente `proceso-service` y `planificador-service`, sin API Gateway. El orden C→JNA→servicio→interfaz sigue la guía maestra. La política confirmada para FCFS/FIFO se aplica únicamente a este algoritmo; no fija por sí sola los desempates de SJF, SRTF ni Round Robin.
