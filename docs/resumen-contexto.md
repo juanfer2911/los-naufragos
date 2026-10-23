@@ -1,7 +1,7 @@
 # Resumen de contexto y continuidad
 
 **Proyecto:** Los Náufragos — Planificador de procesos PI  
-**Última revisión del estado real:** 2026-10-21
+**Última revisión del estado real:** 2026-10-22
 **Propósito de este archivo:** resumir el estado verificable para que el equipo y un agente posterior puedan continuar sin confundir decisiones, propuestas documentales e implementación.
 
 Este documento vivo no sustituye la bitácora. `docs/bitacora-decisiones.md` conserva las decisiones y sus razones; este resumen describe el estado actual observado, las tareas pendientes y la siguiente acción recomendada. Si ambos documentos difieren, verificar con el equipo y no reescribir silenciosamente el historial.
@@ -41,7 +41,8 @@ La decisión de dos servicios no se considera pendiente aunque el enunciado gene
 
 ```text
 .
-├── backend/                         # Vacía; aún no existen las carpetas de servicio
+├── backend/
+│   └── planificador-service/        # Esqueleto Maven/Spring Boot; sin endpoints ni JNA
 ├── docs/
 │   ├── - Los Naufragos - Planificador de procesos.pdf
 │   ├── Enunciado general_PI.pdf
@@ -61,25 +62,26 @@ La decisión de dos servicios no se considera pendiente aunque el enunciado gene
 ├── native/
 │   ├── include/planificador.h        # API nativa para la implementación y prueba local
 │   ├── src/planificador.c            # Implementación FCFS/FIFO
-│   ├── tests/test_planificador.c     # Pruebas FCFS/FIFO compiladas y ejecutadas en WSL
-│   └── Makefile                     # Compilación local en C11
+│   ├── tests/test_planificador.c     # Pruebas FCFS/FIFO y ABI v1
+│   ├── libplanificador.so           # Biblioteca Linux x86-64 presente al revisar
+│   └── Makefile                     # Pruebas y objetivo separado library, C11
 ├── tests/                           # Vacía; no hay suites ni scripts
 ├── .gitignore
 └── README.md
 ```
 
-**No existen todavía** `backend/proceso-service/` ni `backend/planificador-service/`. `frontend/`, `backend/` y la carpeta superior `tests/` siguen sin archivos. El FCFS/FIFO nativo y sus pruebas existen y se compilaron/ejecutaron con éxito en Ubuntu/WSL. No existe aún `libplanificador.so`.
+`backend/planificador-service/` contiene ahora únicamente la estructura inicial Maven/Spring Boot descrita en “Estado actual y siguiente paso”; `backend/proceso-service/`, los endpoints y la integración JNA todavía no existen. `frontend/` y la carpeta superior `tests/` siguen sin archivos. Los resultados anteriores de pruebas y generación de la biblioteca nativa se detallan en la sección de estado actual.
 
-Git está inicializado en la rama `feature/juanfer`, que sigue a `origin/feature/juanfer`. Al cierre de esta tarea, `docs/resumen-contexto.md` está modificado y los cuatro archivos nuevos de `native/` aún no están rastreados; no se creó ningún commit.
+Git está inicializado en la rama `feature/juanfer`, que sigue a `origin/feature/juanfer`. Antes de crear el microservicio, el resumen ya estaba modificado y los cuatro archivos nativos tenían cambios locales; no se había creado ningún commit.
 
 ## 4. Tecnologías y versiones
 
 | Tecnología | Estado según archivos revisados |
 |---|---|
 | Angular 17 o superior, standalone y signals | Rango acordado y documentado en la bitácora. No hay `package.json`, fuentes ni proyecto Angular; versión instalada/configurada **no verificada**. |
-| Java 21 LTS | Versión acordada en la bitácora. No hay build del backend ni configuración de proyecto; uso por los servicios **no verificado**. |
-| Spring Boot 3.2 o superior compatible con Java 21 | Rango acordado; no hay `pom.xml`, `build.gradle` ni microservicios. Versión exacta **pendiente**. |
-| C con GCC, estándar C11 o C17 | `native/Makefile` solicita C11. FCFS/FIFO y las pruebas compilaron y pasaron en Ubuntu/WSL con GCC/Make. No se generó `libplanificador.so`; el estándar/ABI definitivo para JNA sigue **pendiente**. |
+| Java 21 LTS | Configurado en el POM; la prueba Maven pasó usando Java 21.0.12.1. |
+| Spring Boot 3.2 o superior compatible con Java 21 | `planificador-service` usa Spring Boot 3.5.7; la prueba de contexto pasó. |
+| C con GCC, estándar C11 o C17 | `native/Makefile` solicita C11. FCFS/FIFO, ABI v1 y la biblioteca compartida están en el repositorio; pruebas y compilaciones exitosas fueron reportadas anteriormente y deben repetirse si hace falta confirmarlas. |
 | JNA 5.x | Rango acordado; no hay dependencia Java configurada ni interfaz JNA. Versión exacta **pendiente**. |
 | PostgreSQL 16 | Versión mayor acordada. `infra/docker-compose.yml` fija `postgres:16.4`; el archivo pasa la validación estática de Compose, pero contenedor y base **no verificados en ejecución**. |
 | Keycloak 24 o superior | Mínimo acordado. Compose fija `quay.io/keycloak/keycloak:25.0.6`, conectado a PostgreSQL. No se comprobó que el contenedor iniciara ni existe importación del realm de aplicación. |
@@ -93,19 +95,19 @@ Estados utilizados en la tabla: **Completado**, **En progreso**, **Pendiente** y
 
 | Área o tarea | Estado | Evidencia | Siguiente paso |
 |---|---|---|---|
-| Git | **Completado** | Repositorio inicializado en `feature/juanfer`, que sigue a `origin/feature/juanfer`. Al cierre de esta tarea hay modificaciones locales en el resumen y cuatro archivos nativos nuevos sin rastrear; no se creó commit. | Revisar el diff antes de decidir si se versionan estos cambios. |
-| Estructura base | **En progreso** | Existen `frontend/`, `backend/`, `native/`, `infra/`, `tests/` y `docs/`. `frontend/`, `backend/` y la carpeta superior `tests/` no tienen archivos; `native/` ya contiene el módulo FCFS/FIFO local. | Crear las carpetas de los dos servicios cuando corresponda; no confundir código nativo aislado con los microservicios. |
+| Git | **En progreso** | Rama confirmada: `feature/juanfer`. Antes de preparar el commit había cambios en `.idea/`, la guía DOCX, el resumen y cuatro archivos nativos; `backend/planificador-service/` era nuevo. Solo el resumen actualizado y los cuatro archivos del microservicio se preparan para este commit. | Mantener fuera los cambios anteriores cuyo origen no corresponde a esta tarea y verificar el push. |
+| Estructura base | **En progreso** | Existen `frontend/`, `backend/`, `native/`, `infra/`, `tests/` y `docs/`. `backend/planificador-service` tiene el esqueleto inicial; `proceso-service`, `frontend/` y la carpeta superior `tests/` siguen sin implementación. | Continuar por etapas sin crear un tercer servicio ni adelantar contratos pendientes. |
 | Documentación | **En progreso** | Están README, ADD, bitácora, fuentes originales, wireframes y este resumen. README y ADD aún expresan algunas decisiones como pendientes o sin resolver que la bitácora ya confirma. | Revisar esa deriva en una tarea documental autorizada; preservar las fuentes originales. |
 | OpenAPI | **En progreso** | `docs/openapi.yaml` declara 9 operaciones. YAML parseado; 19 esquemas, 6 respuestas y referencias internas comprobadas; 9 `operationId` únicos. La mayoría de rutas/campos son propuestas pendientes de validación. | Revisar y aprobar el contrato con el equipo antes de implementarlo. No hay endpoints implementados. |
 | Docker Compose y SQL | **En progreso** | Compose contiene solo `postgres` y `keycloak`; `docker compose config --quiet` pasó. Hay SQL de inicialización y `.env.example`. El `.env` local no existe. | Iniciar Docker Desktop y comprobar la base/Keycloak; ejecutar y verificar el SQL. No se ha hecho. |
 | FCFS/FIFO nativo | **Completado** | Los cuatro archivos de `native/` implementan FCFS/FIFO y casos de prueba; `make -C native clean` seguido de `make -C native test` pasó en Ubuntu/WSL y mostró `OK: pruebas FCFS/FIFO`. El ejecutable se limpió después. | Conservar el resultado como evidencia de prueba local; aún no representa RF-03 completo ni aceptación oficial del profesor. |
-| Núcleo C completo | **En progreso** | Solo está implementado y probado FCFS/FIFO. SJF, SRTF, Round Robin y la biblioteca compartida aún no existen. | Continuar con los algoritmos restantes según contratos y oráculos aprobados; preparar construcción de `libplanificador.so`. |
-| Integración JNA | **Pendiente** | No hay proyecto Java, dependencia JNA, estructuras mapeadas ni adaptador. | Implementar después de acordar el contrato C/JNA y validar una corrida nativa independiente. |
-| Microservicios | **Pendiente** | `backend/` está vacío; no existen los dos proyectos Spring Boot. | Crear exactamente `proceso-service` y `planificador-service` cuando se aprueben contratos y versiones. |
+| Núcleo C completo | **En progreso** | FCFS/FIFO, ABI `planificador_fcfs_v1()` y objetivo `library` están implementados; los resultados exitosos de las ejecuciones previas son reportados. SJF, SRTF y Round Robin siguen pendientes. | Continuar según contratos y oráculos aprobados, sin modificar la lógica FIFO. |
+| Integración JNA | **Pendiente** | Existe el proyecto base Java, pero aún no tiene JNA, estructuras mapeadas ni adaptador. | Confirmar el contrato C/JNA y el entorno compatible; luego probar la integración aislada. |
+| Microservicios | **En progreso** | `planificador-service` tiene una estructura inicial Maven/Spring Boot; `proceso-service` aún no existe. No hay endpoints ni funcionalidades implementados. | Continuar el servicio por etapas, respetando los contratos que requieren aprobación. |
 | Seguridad Keycloak/JWT | **Pendiente** | No existe realm de aplicación ni configuración de clientes/resource servers. Compose solo prepara el servicio Keycloak. | Crear/importar realm y validar autenticación/autorización en ambos servicios en su fase. |
 | Frontend Angular | **Pendiente** | `frontend/` está vacío; no hay manifiestos ni componentes. | Implementar tras acordar API y flujos de autenticación; obtener catálogo desde la API, sin lista fija. |
 | Persistencia e historial | **Pendiente** | Compose/SQL proponen bases y roles separados, pero no están ejecutados; no hay esquema ni código de persistencia. | Verificar la infraestructura y acordar campos/retención del historial antes de persistirlo en `planificador-service`. |
-| Pruebas | **En progreso** | La suite C de FCFS/FIFO compiló y pasó en Ubuntu/WSL. Cubre llegadas distintas/empatadas, desempates FIFO, ociosidad, un proceso, capacidad insuficiente y ráfaga cero. No hay suites Java, integración ni aceptación de los ocho requisitos. | Mantener la evidencia de la salida real y ampliar las pruebas junto con cada algoritmo y requisito; no extrapolar el resultado de FIFO al sistema completo. |
+| Pruebas | **En progreso** | En esta revisión, `mvn -f backend/planificador-service/pom.xml test` terminó con BUILD SUCCESS: 1 prueba, 0 fallos, 0 errores, 0 omitidas. La aplicación también arrancó desde la configuración Spring Boot de IntelliJ; se confirmó un listener en 8080 y una respuesta HTTP 404 en `/`, ya que aún no hay rutas. Las advertencias de Mockito/agentes dinámicos no impidieron la prueba. No se repitieron las pruebas C. | Añadir pruebas y verificaciones conforme se implementen contratos, JNA y endpoints. |
 | Benchmarks | **Pendiente** | No hay scripts, datos, resultados ni mediciones. Solo existen protocolos documentados. | Implementar scripts separados y registrar resultados reproducibles al disponer de motores equivalentes. |
 
 **Verificación repetida el 2026-10-21:** desde WSL se ejecutaron `make -C native clean`, `make -C native test` y una limpieza posterior. GCC compiló con `-std=c11 -Wall -Wextra -Werror -pedantic -O2`; los casos pasaron y la salida final fue `OK: pruebas FCFS/FIFO`, con segmentos Gantt y métricas impresos. El binario generado se eliminó con `make clean`. Esto verifica el código y prueba local de FCFS/FIFO en ese entorno; no verifica `libplanificador.so`, JNA, HTTP, microservicios, contenedores ni otros algoritmos. Compose/OpenAPI no se volvieron a ejecutar.
@@ -191,15 +193,15 @@ El roadmap conserva las etapas y dependencias de la guía maestra. Las propuesta
 
 La especificación declara bearer JWT a nivel global y esquemas reutilizables para procesos, segmentos de ejecución, intervalos ociosos, métricas, promedio, historial y errores. No enumera algoritmos de forma cerrada. Las horas/segmentos, respuestas HTTP, campos de conjunto/historial, formato de PID frente a los wireframes, comportamiento de comparación y errores siguen sujetos a revisión. **Ninguna de estas rutas está implementada.**
 
-El contrato C/JNA todavía no existe como ABI aprobado. `native/include/planificador.h` define la interfaz local usada por esta implementación y prueba; siguen pendientes el documento ABI, el acuerdo de estructuras/alineación, límites, propiedad/liberación de memoria, códigos de error y el adaptador Java. No iniciar la integración JNA hasta fijar esos puntos.
+La ABI `planificador_fcfs_v1()` con tipos fijos ya está implementada en C. La integración Java/JNA sigue pendiente: aún hay que verificar el mapeo exacto de estructuras/alineación, las llamadas y capacidades, la traducción de errores y la carga de la biblioteca desde el entorno Java compatible.
 
 ## 8. Pruebas y benchmarks
 
 - Se creó `native/tests/test_planificador.c` con casos de desarrollo para FCFS/FIFO: llegadas distintas y empatadas, prioridad y orden de entrada en empate de llegada, CPU ociosa al inicio y entre procesos, un proceso, capacidad insuficiente y ráfaga inválida. Los resultados esperados se calcularon para esta prueba, no proceden de documentos del profesor.
-- Verificación repetida en Ubuntu/WSL el 2026-10-21: `make -C native clean` y `make -C native test` pasaron con GCC; se imprimieron el Gantt, periodos ociosos, métricas y `OK: pruebas FCFS/FIFO`. Se limpió luego el ejecutable generado. No se ha construido una biblioteca compartida.
-- No hay casos manuales oficiales versionados, pruebas JUnit ni pruebas de integración.
+- Verificación reportada en Ubuntu/WSL el 2026-10-21: `make -C native clean` y `make -C native test` pasaron con GCC; se imprimieron el Gantt, periodos ociosos, métricas y `OK: pruebas FCFS/FIFO`. En una ejecución reportada posteriormente también pasaron `make -C native library`; en esta tarea no se repitieron las pruebas ni la generación.
+- No hay casos manuales oficiales versionados ni pruebas de integración. La prueba básica de carga de contexto de `planificador-service` sí se ejecutó el 2026-10-22 y pasó: 1 prueba, 0 fallos, 0 errores, 0 omitidas.
 - No se encontraron scripts de benchmark, datos, resultados crudos, medianas ni informes de usabilidad.
-- No se ejecutaron pruebas Java, de integración, de aceptación de los ocho requisitos ni benchmarks; sí se ejecutó y pasó la suite nativa FCFS/FIFO descrita arriba.
+- No se ejecutaron pruebas de integración, aceptación de los ocho requisitos ni benchmarks en esta revisión; las pruebas nativas no se repitieron.
 - La única validación de infraestructura observada es el parseo de configuración de Compose, que pasó sin iniciar contenedores.
 - La sintaxis YAML de OpenAPI pudo parsearse con el parser disponible; sus referencias internas (19 esquemas y 6 respuestas) se resolvieron y los 9 `operationId` son únicos. Esto no equivale a validar el documento con un validador OpenAPI dedicado.
 - El protocolo de Web 2 está especificado como 50, 500, 5.000 y 50.000 procesos, 30 repeticiones y mediana.
@@ -208,7 +210,7 @@ El contrato C/JNA todavía no existe como ABI aprobado. `native/include/planific
 ## 9. Problemas, riesgos y decisiones pendientes
 
 1. **Reglas concretas de prioridad por algoritmo:** FCFS/FIFO ya tiene política confirmada para esta etapa: llegada primero; con igual llegada, menor prioridad numérica y luego orden original. Falta especificar la aplicación en empates de ráfaga para SJF, empates de tiempo restante para SRTF y orden/reingreso de Round Robin, sin convertirlos implícitamente en planificación por prioridad.
-2. **Contrato C/JNA:** firmas ABI, alineación, límites, memoria y tabla de errores pendientes.
+2. **Integración C/JNA:** ABI v1 y sus códigos están definidos en C; el mapeo JNA, las verificaciones de estructura, la carga de biblioteca y las pruebas Java↔C siguen pendientes.
 3. **OpenAPI:** endpoints, esquemas y códigos propuestos requieren aprobación; la comprobación realizada no fue una validación OpenAPI formal. El borrador ya propone HTTP 400 con `application/json` y `ApiError`, pero no está aprobado ni probado. `POST /conjuntos` está descrito como registro de conjuntos de referencia solo por docente, mientras RF-02 pide guardar/recuperar conjuntos de prueba con nombre; confirmar si se trata del mismo tipo de conjunto, sus permisos y endpoints.
 4. **Historial:** ubicación y propiedad por usuario están confirmadas; aún falta acordar campos exactos, retención, snapshots y semántica al pedir una corrida ajena.
 5. **Stack:** siguen pendientes elecciones exactas dentro de los rangos acordados (Spring Boot, Angular, JNA y C11/C17).
@@ -278,3 +280,53 @@ Este resumen organiza los ocho requisitos funcionales proporcionados por el equi
 7. **Aceptación funcional y evidencias.** Ejecutar los ocho criterios del backlog, casos manuales y pruebas de integración. Mantener separados los dos protocolos de benchmark. Registrar resultados únicamente después de ejecutarlos.
 
 La secuencia mantiene exactamente `proceso-service` y `planificador-service`, sin API Gateway. El orden C→JNA→servicio→interfaz sigue la guía maestra. La política confirmada para FCFS/FIFO se aplica únicamente a este algoritmo; no fija por sí sola los desempates de SJF, SRTF ni Round Robin.
+
+## Estado actual y siguiente paso
+
+**Revisión del repositorio: 2026-10-22.** Esta sección actualiza el estado indicado en los apartados anteriores cuando haya diferencias.
+
+### Arquitectura acordada
+
+- Frontend Angular.
+- Exactamente dos microservicios Spring Boot: `proceso-service` y `planificador-service`.
+- Biblioteca nativa en C llamada desde Java mediante JNA.
+- Keycloak para autenticación.
+- No introducir un API Gateway.
+
+### Trabajo nativo realizado
+
+- FCFS/FIFO está implementado en C y dispone de pruebas.
+- Se añadió el adaptador ABI `planificador_fcfs_v1()` con tipos de tamaño fijo basados en `int32_t` e `int64_t`.
+- `native/Makefile` dispone del objetivo `library` para generar `native/libplanificador.so`, separado del ejecutable de pruebas.
+- Las ejecuciones previas reportaron que `make -C native test` y `make -C native library` finalizaron correctamente. No se repitieron las pruebas nativas ni la generación de la biblioteca en esta sesión.
+- En la inspección actual, `native/libplanificador.so` existe, es ELF Linux x86-64 y exporta `planificador_fcfs` y `planificador_fcfs_v1`. La inspección de presencia y símbolos no sustituye la repetición de las pruebas.
+
+### Situación de la integración Java
+
+- `backend/planificador-service` contiene `pom.xml`, `PlanificadorServiceApplication.java`, `PlanificadorServiceApplicationTests.java` y `README.md`. El POM declara Java 21 y Spring Boot 3.5.7.
+- El 2026-10-22, Maven 3.9.16 incluido con IntelliJ ejecutó `mvn -f backend/planificador-service/pom.xml test`: BUILD SUCCESS, 1 prueba, 0 fallos, 0 errores y 0 omitidas. Las advertencias de Mockito/agentes dinámicos no impidieron el éxito.
+- La configuración Spring Boot de IntelliJ inició la aplicación; se verificó el puerto 8080 escuchando y una respuesta HTTP 404 en `/`, esperable porque aún no hay ruta raíz. Se detuvo la sesión después de comprobarlo. Un intento separado de `mvn spring-boot:run` falló al descargar dependencias del plugin por resolución DNS de Maven Central.
+- No hay endpoints funcionales de planificación, algoritmos Java ni integración JNA. JNA sigue pendiente.
+- La biblioteca disponible es Linux x86-64. Antes de cargarla desde Java hay que confirmar el entorno de ejecución y usar un entorno/plataforma compatible.
+
+### Siguiente paso acordado
+
+1. Verificar el estado Git y localizar cambios previos antes de preparar nuevos commits.
+2. Revisar y aprobar el contrato REST de `docs/openapi.yaml` antes de implementar endpoints.
+3. Integrar JNA en `planificador-service`, mapeando cuidadosamente estructuras y ABI de C.
+4. Resolver cómo se cargará la biblioteca nativa según el entorno de ejecución; la biblioteca disponible es Linux x86-64.
+5. Probar la llamada Java↔C sin cambiar la lógica FIFO.
+6. Continuar con los algoritmos y endpoints restantes conforme a los requisitos del proyecto.
+
+### Archivos del esqueleto inicial del microservicio
+
+- `backend/planificador-service/pom.xml`: configuración Maven, Java 21, Spring Boot 3.5.7, Spring Web y pruebas.
+- `backend/planificador-service/src/main/java/com/losnaufragos/planificador/PlanificadorServiceApplication.java`: punto de entrada Spring Boot.
+- `backend/planificador-service/src/test/java/com/losnaufragos/planificador/PlanificadorServiceApplicationTests.java`: prueba básica de carga del contexto.
+- `backend/planificador-service/README.md`: requisitos y comandos de prueba/ejecución.
+
+### Estado Git observado antes del commit de esta actualización
+
+- Rama confirmada por `git branch --show-current`: `feature/juanfer`.
+- Los cambios de `.idea/` (tres archivos añadidos al índice y `misc.xml` modificado), `docs/Guia_maestra_Copilot_Planificador_Los_Naufragos.docx` y los cuatro archivos de `native/` ya estaban presentes antes de preparar este commit. Se dejan fuera; no se atribuyen automáticamente a esta sesión.
+- Los únicos archivos seleccionados para este commit son este resumen actualizado y los cuatro archivos del esqueleto `backend/planificador-service/`, creados en la tarea anterior. No se incluyen `target/`, binarios, bibliotecas nativas ni secretos.
