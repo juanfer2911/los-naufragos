@@ -30,8 +30,16 @@ typedef enum {
     PLANIFICADOR_ARGUMENTO_INVALIDO = 1,
     PLANIFICADOR_MEMORIA_INSUFICIENTE = 2,
     PLANIFICADOR_CAPACIDAD_INSUFICIENTE = 3,
-    PLANIFICADOR_DESBORDAMIENTO_TIEMPO = 4
+    PLANIFICADOR_DESBORDAMIENTO_TIEMPO = 4,
+    PLANIFICADOR_CANTIDAD_NO_REPRESENTABLE = 5
 } planificador_estado_t;
+
+/*
+ * Codigos numericos de la interfaz v1:
+ * 0 OK, 1 argumento invalido, 2 memoria insuficiente,
+ * 3 capacidad insuficiente, 4 desbordamiento de tiempo,
+ * 5 cantidad requerida de segmentos no representable en int32_t.
+ */
 
 /*
  * Ejecuta FCFS/FIFO sin expropiacion.
@@ -50,5 +58,31 @@ planificador_estado_t planificador_fcfs(
     size_t *cantidad_segmentos,
     metricas_proceso_t *metricas,
     size_t capacidad_metricas);
+
+/*
+ * Interfaz versionada con cantidades y capacidades int32_t.
+ *
+ * Ambos contadores de salida son obligatorios. Si alguno es NULL, devuelve
+ * PLANIFICADOR_ARGUMENTO_INVALIDO, pone a cero cualquier contador no nulo
+ * y no modifica los buffers de resultados.
+ * Los buffers de procesos, segmentos y metricas deben ser no nulos incluso
+ * cuando su capacidad sea cero.
+ * Si el sondeo falla antes de calcular los tamanos, ambos contadores quedan
+ * en cero. Ante capacidad insuficiente, informa ambos tamanos requeridos y
+ * no escribe resultados parciales. Si la segunda llamada falla, conserva en
+ * los contadores los requerimientos calculados por el sondeo.
+ * Si la cantidad requerida de segmentos excede INT32_MAX, devuelve
+ * PLANIFICADOR_CANTIDAD_NO_REPRESENTABLE, deja ese contador en cero y
+ * conserva la cantidad requerida de metricas.
+ */
+int32_t planificador_fcfs_v1(
+    const proceso_t *procesos,
+    int32_t cantidad_procesos,
+    segmento_t *segmentos,
+    int32_t capacidad_segmentos,
+    int32_t *cantidad_segmentos_requerida,
+    metricas_proceso_t *metricas,
+    int32_t capacidad_metricas,
+    int32_t *cantidad_metricas_requerida);
 
 #endif
