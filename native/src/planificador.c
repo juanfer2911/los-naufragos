@@ -1,27 +1,59 @@
 #include "planificador.h"
 
-#include <limits.h> //define los limites para que no suceda desbordamientos
-#include <stdint.h> //define tipos de datos de tamaño fijo
-#include <stdlib.h> //define funciones de memoria dinámica y ordenamiento como malloc free y el qsort
+#include <limits.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 /* ============================================================
- * ESTRUCTURAS AUXILIARES INTERNAS DE FCFS
+ * UTILIDADES COMUNES DEL NUCLEO
  * ============================================================ */
-typedef struct { // Empaqueta estas variables para usarlas juntas.
-    size_t indice_original;  // Guarda el "número de asiento" inicial (sin negativos) para no perder el orden al organizar.
-    int64_t llegada; // Caja grande (64 bits) para tiempos largos; evita desbordamientos del servidor.
-    int32_t prioridad; // Caja pequeña (32 bits) para números cortos; ahorra memoria.
-} proceso_ordenado_fcfs_t;// La etiqueta o nombre oficial que le damos a este paquete.
+static planificador_estado_t sumar_tiempo_seguro(
+    int64_t inicio,
+    int64_t duracion,
+    int64_t *fin)
+{
+    if (fin == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    if ((duracion > 0 && inicio > INT64_MAX - duracion)
+        || (duracion < 0 && inicio < INT64_MIN - duracion)) {
+        return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+    }
+
+    *fin = inicio + duracion;
+    return PLANIFICADOR_OK;
+}
+
+static metricas_proceso_t calcular_metricas_proceso(
+    const proceso_t *proceso,
+    int64_t inicio,
+    int64_t fin)
+{
+    return (metricas_proceso_t) {
+        .proceso_id = proceso->id,
+        .espera = inicio - proceso->llegada,
+        .retorno = fin - proceso->llegada,
+        .respuesta = inicio - proceso->llegada
+    };
+}
 
 /* ============================================================
- * CRITERIOS DE ORDENAMIENTO Y DESEMPATE
+ * ESTRUCTURAS AUXILIARES ESPECIFICAS DE FCFS
+ * ============================================================ */
+typedef struct {
+    size_t indice_original;
+    int64_t llegada;
+    int32_t prioridad;
+} proceso_ordenado_fcfs_t;
+
+/* ============================================================
+ * ORDENAMIENTO FCFS Y SUS DESEMPATES
  * ============================================================
  * FCFS ordena primero por llegada. La prioridad solo desempata
  * llegadas iguales; el indice original resuelve el ultimo empate.
  */
 static int comparar_procesos_fcfs(const void *izquierda, const void *derecha)
 {
-    // Convertimos los datos "crudos" al paquete (struct) que creamos antes.
     const proceso_ordenado_fcfs_t *proceso_izquierdo = izquierda;
     const proceso_ordenado_fcfs_t *proceso_derecho = derecha;
 
@@ -47,7 +79,7 @@ static int comparar_procesos_fcfs(const void *izquierda, const void *derecha)
 }
 
 /* ============================================================
- * FUNCIONES AUXILIARES DE FCFS
+ * PREPARACION DE LA PLANIFICACION FCFS
  * ============================================================ */
 static planificador_estado_t contar_segmentos_necesarios_fcfs(
     const proceso_t *procesos,
@@ -55,45 +87,44 @@ static planificador_estado_t contar_segmentos_necesarios_fcfs(
     size_t cantidad_procesos,
     size_t *cantidad_segmentos_necesaria)
 {
-    int64_t reloj_cpu = 0;        // El reloj de la CPU arranca en 0.
-    size_t total_segmentos = 0;   // Contador para saber cuántos bloques necesitaremos en total.
+    int64_t reloj_cpu = 0;
+    size_t total_segmentos = 0;
 
     for (size_t turno = 0; turno < cantidad_procesos; turno++) {
-        // Obtenemos el proceso correspondiente al turno actual
         size_t indice_proceso = procesos_ordenados[turno].indice_original;
         const proceso_t *proceso = &procesos[indice_proceso];
-
-        // El proceso arranca cuando llega O cuando la CPU se desocupe (lo que sea mayor).
         int64_t tiempo_inicio =
             proceso->llegada > reloj_cpu ? proceso->llegada : reloj_cpu;
+        int64_t tiempo_fin;
 
-        // 1. ¿Llegó después del reloj? Entonces la CPU estuvo desocupada (CPU ociosa).
         if (proceso->llegada > reloj_cpu) {
             if (total_segmentos == SIZE_MAX) {
-                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO; // Freno de seguridad.
+                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
             }
-            total_segmentos++; // +1 bloque por la CPU ociosa.
+            total_segmentos++;
         }
 
-        // 2. Control de seguridad contra números gigantes en la ráfaga.
-        if (total_segmentos == SIZE_MAX
-            || proceso->rafaga > INT64_MAX - tiempo_inicio) {
-            return PLANIFICADOR_DESBORDAMIENTO_TIEMPO; // Freno de seguridad.
+        if (total_segmentos == SIZE_MAX) {
+            return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
         }
+        total_segmentos++;
 
-        total_segmentos++; // +1 bloque por el proceso que se va a ejecutar.
-
-        // Avanzamos el reloj de la CPU sumando lo que duró la ráfaga de este proceso.
-        reloj_cpu = tiempo_inicio + proceso->rafaga;
+        planificador_estado_t estado = sumar_tiempo_seguro(
+            tiempo_inicio,
+            proceso->rafaga,
+            &tiempo_fin);
+        if (estado != PLANIFICADOR_OK) {
+            return estado;
+        }
+        reloj_cpu = tiempo_fin;
     }
 
-    // Le devolvemos a quien llamó la función el total final de bloques contados.
     *cantidad_segmentos_necesaria = total_segmentos;
     return PLANIFICADOR_OK;
 }
 
 /* ============================================================
- * ALGORITMO FCFS — INTERFAZ PUBLICA DEL NUCLEO
+ * ALGORITMO FCFS/FIFO
  * ============================================================ */
 planificador_estado_t planificador_fcfs(
     const proceso_t *procesos,
@@ -110,7 +141,7 @@ planificador_estado_t planificador_fcfs(
     int64_t reloj_cpu = 0;
     planificador_estado_t estado;
 
-    /* VALIDACIONES: revisar argumentos antes de acceder a los buffers. */
+    /* Validar argumentos antes de acceder a los buffers. */
     if (cantidad_segmentos == NULL) {
         return PLANIFICADOR_ARGUMENTO_INVALIDO;
     }
@@ -123,7 +154,7 @@ planificador_estado_t planificador_fcfs(
         return PLANIFICADOR_MEMORIA_INSUFICIENTE;
     }
 
-    /* Los tiempos deben ser validos antes de ordenar o calcular resultados. */
+    /* Los tiempos deben ser válidos antes de ordenar o calcular resultados. */
     for (size_t indice_proceso = 0; indice_proceso < cantidad; indice_proceso++) {
         if (procesos[indice_proceso].llegada < 0
             || procesos[indice_proceso].rafaga <= 0) {
@@ -131,7 +162,7 @@ planificador_estado_t planificador_fcfs(
         }
     }
 
-    /* Preparar una copia ordenable que conserva la posicion de cada proceso. */
+    /* Preparar una copia ordenable que conserva la posición de cada proceso. */
     procesos_ordenados = malloc(cantidad * sizeof(*procesos_ordenados));
     if (procesos_ordenados == NULL) {
         return PLANIFICADOR_MEMORIA_INSUFICIENTE;
@@ -170,14 +201,23 @@ planificador_estado_t planificador_fcfs(
     }
 
     /* ========================================================
-     * CALCULO DE TIEMPOS Y SEGMENTOS DE CPU OCIOSA
+     * GENERACION DE SEGMENTOS Y METRICAS
      * ======================================================== */
     for (size_t turno = 0; turno < cantidad; turno++) {
         size_t indice_proceso = procesos_ordenados[turno].indice_original;
         const proceso_t *proceso = &procesos[indice_proceso];
         int64_t tiempo_inicio =
             proceso->llegada > reloj_cpu ? proceso->llegada : reloj_cpu;
-        int64_t tiempo_fin = tiempo_inicio + proceso->rafaga;
+        int64_t tiempo_fin;
+
+        estado = sumar_tiempo_seguro(
+            tiempo_inicio,
+            proceso->rafaga,
+            &tiempo_fin);
+        if (estado != PLANIFICADOR_OK) {
+            free(procesos_ordenados);
+            return estado;
+        }
 
         if (proceso->llegada > reloj_cpu) {
             segmentos[indice_siguiente_segmento++] = (segmento_t) {
@@ -195,21 +235,200 @@ planificador_estado_t planificador_fcfs(
             .es_ocioso = 0
         };
 
-        /* ====================================================
-         * CALCULO DE METRICAS
-         * ==================================================== */
-        /* Las metricas quedan en el orden original de entrada. */
-        metricas[indice_proceso] = (metricas_proceso_t) {
-            .proceso_id = proceso->id,
-            .espera = tiempo_inicio - proceso->llegada,
-            .retorno = tiempo_fin - proceso->llegada,
-            .respuesta = tiempo_inicio - proceso->llegada
-        };
+        /* Las métricas se guardan en el orden original de entrada. */
+        metricas[indice_proceso] = calcular_metricas_proceso(
+            proceso,
+            tiempo_inicio,
+            tiempo_fin);
         reloj_cpu = tiempo_fin;
     }
 
     free(procesos_ordenados);
     return PLANIFICADOR_OK;
+}
+
+/* ============================================================
+ * ALGORITMO SJF NO EXPROPIATIVO
+ * ============================================================ */
+typedef struct {
+    size_t indice_original;
+    int64_t llegada;
+    int64_t rafaga;
+    int32_t prioridad;
+    int64_t inicio;
+    int64_t fin;
+} proceso_sjf_t;
+
+/*
+ * Desempate provisional de SJF: llegada, prioridad y orden original.
+ * La regla debe confirmarse con el profesor antes de considerarse definitiva.
+ */
+static int es_preferible_sjf(
+    const proceso_sjf_t *candidato,
+    const proceso_sjf_t *actual)
+{
+    if (candidato->rafaga != actual->rafaga) {
+        return candidato->rafaga < actual->rafaga;
+    }
+    if (candidato->llegada != actual->llegada) {
+        return candidato->llegada < actual->llegada;
+    }
+    if (candidato->prioridad != actual->prioridad) {
+        return candidato->prioridad < actual->prioridad;
+    }
+    return candidato->indice_original < actual->indice_original;
+}
+
+planificador_estado_t planificador_sjf(
+    const proceso_t *procesos,
+    size_t cantidad,
+    segmento_t *segmentos,
+    size_t capacidad_segmentos,
+    size_t *cantidad_segmentos,
+    metricas_proceso_t *metricas,
+    size_t capacidad_metricas)
+{
+    proceso_sjf_t *planificacion;
+    size_t total_segmentos = 0;
+    int64_t reloj_cpu = 0;
+    planificador_estado_t estado = PLANIFICADOR_OK;
+
+    if (cantidad_segmentos == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    *cantidad_segmentos = 0;
+
+    if (procesos == NULL || cantidad == 0 || segmentos == NULL || metricas == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    if (cantidad > SIZE_MAX / sizeof(*planificacion)) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    for (size_t i = 0; i < cantidad; i++) {
+        if (procesos[i].llegada < 0 || procesos[i].rafaga <= 0) {
+            return PLANIFICADOR_ARGUMENTO_INVALIDO;
+        }
+    }
+
+    planificacion = malloc(cantidad * sizeof(*planificacion));
+    if (planificacion == NULL) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    for (size_t i = 0; i < cantidad; i++) {
+        planificacion[i] = (proceso_sjf_t) {
+            .indice_original = i,
+            .llegada = procesos[i].llegada,
+            .rafaga = procesos[i].rafaga,
+            .prioridad = procesos[i].prioridad,
+            .inicio = 0,
+            .fin = 0
+        };
+    }
+
+    /*
+     * Preparar todo el orden de ejecucion antes de escribir en los buffers
+     * del llamador. Asi se pueden informar errores sin dejar resultados
+     * parciales.
+     */
+    size_t turno = 0;
+    while (turno < cantidad) {
+        size_t indice_elegido = cantidad;
+
+        for (size_t i = turno; i < cantidad; i++) {
+            if (planificacion[i].llegada <= reloj_cpu
+                && (indice_elegido == cantidad
+                    || es_preferible_sjf(
+                        &planificacion[i],
+                        &planificacion[indice_elegido]))) {
+                indice_elegido = i;
+            }
+        }
+
+        if (indice_elegido == cantidad) {
+            size_t indice_proxima_llegada = turno;
+            for (size_t i = turno + 1; i < cantidad; i++) {
+                if (planificacion[i].llegada
+                    < planificacion[indice_proxima_llegada].llegada) {
+                    indice_proxima_llegada = i;
+                }
+            }
+
+            if (total_segmentos == SIZE_MAX) {
+                estado = PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+                goto liberar_planificacion;
+            }
+            total_segmentos++;
+            reloj_cpu = planificacion[indice_proxima_llegada].llegada;
+            continue;
+        }
+
+        if (indice_elegido != turno) {
+            proceso_sjf_t temporal = planificacion[turno];
+            planificacion[turno] = planificacion[indice_elegido];
+            planificacion[indice_elegido] = temporal;
+        }
+
+        if (total_segmentos == SIZE_MAX) {
+            estado = PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+            goto liberar_planificacion;
+        }
+        total_segmentos++;
+
+        planificacion[turno].inicio = reloj_cpu;
+        estado = sumar_tiempo_seguro(
+            reloj_cpu,
+            planificacion[turno].rafaga,
+            &planificacion[turno].fin);
+        if (estado != PLANIFICADOR_OK) {
+            goto liberar_planificacion;
+        }
+        reloj_cpu = planificacion[turno].fin;
+        turno++;
+    }
+
+    *cantidad_segmentos = total_segmentos;
+    if (capacidad_segmentos < total_segmentos
+        || capacidad_metricas < cantidad) {
+        estado = PLANIFICADOR_CAPACIDAD_INSUFICIENTE;
+        goto liberar_planificacion;
+    }
+
+    /* Escribir segmentos de CPU y métricas en orden de entrada. */
+    size_t indice_siguiente_segmento = 0;
+    reloj_cpu = 0;
+    for (size_t turno = 0; turno < cantidad; turno++) {
+        const proceso_sjf_t *proceso_planificado = &planificacion[turno];
+        const proceso_t *proceso =
+            &procesos[proceso_planificado->indice_original];
+
+        if (proceso_planificado->inicio > reloj_cpu) {
+            segmentos[indice_siguiente_segmento++] = (segmento_t) {
+                .proceso_id = 0,
+                .inicio = reloj_cpu,
+                .fin = proceso_planificado->inicio,
+                .es_ocioso = 1
+            };
+        }
+
+        segmentos[indice_siguiente_segmento++] = (segmento_t) {
+            .proceso_id = proceso->id,
+            .inicio = proceso_planificado->inicio,
+            .fin = proceso_planificado->fin,
+            .es_ocioso = 0
+        };
+        metricas[proceso_planificado->indice_original] =
+            calcular_metricas_proceso(
+                proceso,
+                proceso_planificado->inicio,
+                proceso_planificado->fin);
+        reloj_cpu = proceso_planificado->fin;
+    }
+
+liberar_planificacion:
+    free(planificacion);
+    return estado;
 }
 
 /* ============================================================
@@ -293,7 +512,6 @@ int32_t planificador_fcfs_v1(
 /* ============================================================
  * FUTUROS ALGORITMOS
  * ============================================================
- * SJF no expropiativo.
  * SRTF expropiativo.
  * Round Robin con cuanto configurable.
  * Estos algoritmos no se implementan en esta etapa.

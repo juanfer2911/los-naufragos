@@ -60,6 +60,25 @@ planificador_estado_t planificador_fcfs(
     size_t capacidad_metricas);
 
 /*
+ * Ejecuta SJF no expropiativo.
+ * Elige la menor rafaga entre los procesos que ya llegaron y ejecuta el
+ * proceso seleccionado hasta finalizar. En empates de rafaga se propone
+ * usar llegada menor, prioridad numerica menor y orden original, en ese
+ * orden; esta politica esta pendiente de confirmacion con el profesor.
+ * Las metricas se escriben en orden de entrada y los periodos ociosos usan
+ * es_ocioso = 1. Ante capacidad insuficiente informa el total requerido de
+ * segmentos sin modificar los buffers de resultados.
+ */
+planificador_estado_t planificador_sjf(
+    const proceso_t *procesos,
+    size_t cantidad,
+    segmento_t *segmentos,
+    size_t capacidad_segmentos,
+    size_t *cantidad_segmentos,
+    metricas_proceso_t *metricas,
+    size_t capacidad_metricas);
+
+/*
  * Interfaz versionada con cantidades y capacidades int32_t.
  *
  * Ambos contadores de salida son obligatorios. Si alguno es NULL, devuelve

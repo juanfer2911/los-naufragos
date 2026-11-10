@@ -176,6 +176,82 @@ static int probar_validacion_y_capacidad(void)
     return 0;
 }
 
+static int probar_desempates_fcfs(void)
+{
+    const proceso_t procesos[] = {
+        { .id = 20, .llegada = 0, .rafaga = 1, .prioridad = 8 },
+        { .id = 30, .llegada = 0, .rafaga = 1, .prioridad = 2 },
+        { .id = 40, .llegada = 0, .rafaga = 1, .prioridad = 2 },
+        { .id = 10, .llegada = 0, .rafaga = 1, .prioridad = 9 }
+    };
+    const int32_t orden_esperado[] = { 30, 40, 20, 10 };
+    segmento_t segmentos[sizeof(procesos) / sizeof(procesos[0])];
+    metricas_proceso_t metricas[sizeof(procesos) / sizeof(procesos[0])];
+    size_t cantidad_segmentos = 0;
+
+    COMPROBAR(planificador_fcfs(
+        procesos,
+        sizeof(procesos) / sizeof(procesos[0]),
+        segmentos,
+        sizeof(segmentos) / sizeof(segmentos[0]),
+        &cantidad_segmentos,
+        metricas,
+        sizeof(metricas) / sizeof(metricas[0])) == PLANIFICADOR_OK);
+    COMPROBAR(cantidad_segmentos == sizeof(orden_esperado) / sizeof(orden_esperado[0]));
+
+    for (size_t i = 0; i < cantidad_segmentos; i++) {
+        COMPROBAR(segmentos[i].proceso_id == orden_esperado[i]);
+    }
+    return 0;
+}
+
+static int probar_errores_no_escriben_resultados(void)
+{
+    proceso_t proceso = { .id = 1, .llegada = 0, .rafaga = 1, .prioridad = 0 };
+    segmento_t segmentos[2] = {
+        { .proceso_id = 91, .inicio = 92, .fin = 93, .es_ocioso = 94 },
+        { .proceso_id = 81, .inicio = 82, .fin = 83, .es_ocioso = 84 }
+    };
+    metricas_proceso_t metrica = {
+        .proceso_id = 71,
+        .espera = 72,
+        .retorno = 73,
+        .respuesta = 74
+    };
+    size_t cantidad_segmentos = 99;
+
+    COMPROBAR(planificador_fcfs(
+        &proceso, 1, segmentos, 2, NULL, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(segmentos[0].proceso_id == 91 && metrica.proceso_id == 71);
+
+    proceso.llegada = -1;
+    COMPROBAR(planificador_fcfs(
+        &proceso, 1, segmentos, 2, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+    COMPROBAR(segmentos[0].proceso_id == 91
+        && segmentos[0].inicio == 92
+        && segmentos[0].fin == 93
+        && segmentos[0].es_ocioso == 94);
+    COMPROBAR(segmentos[1].proceso_id == 81
+        && segmentos[1].inicio == 82
+        && segmentos[1].fin == 83
+        && segmentos[1].es_ocioso == 84);
+    COMPROBAR(metrica.proceso_id == 71
+        && metrica.espera == 72
+        && metrica.retorno == 73
+        && metrica.respuesta == 74);
+
+    proceso.llegada = 0;
+    COMPROBAR(planificador_fcfs(
+        NULL, 1, segmentos, 2, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+    COMPROBAR(segmentos[0].proceso_id == 91 && metrica.proceso_id == 71);
+    return 0;
+}
+
 static int probar_exito_v1_equivale_a_fcfs(void)
 {
     const proceso_t procesos[] = {
@@ -348,14 +424,284 @@ static int probar_desbordamiento_v1(void)
     return 0;
 }
 
+static int probar_argumentos_invalidos_v1(void)
+{
+    const proceso_t proceso = {
+        .id = 1,
+        .llegada = 0,
+        .rafaga = 1,
+        .prioridad = 0
+    };
+    segmento_t segmento = {
+        .proceso_id = 99,
+        .inicio = 99,
+        .fin = 99,
+        .es_ocioso = 99
+    };
+    metricas_proceso_t metrica = {
+        .proceso_id = 98,
+        .espera = 98,
+        .retorno = 98,
+        .respuesta = 98
+    };
+    int32_t cantidad_segmentos_requerida = -1;
+    int32_t cantidad_metricas_requerida = -1;
+
+    COMPROBAR(planificador_fcfs_v1(
+        &proceso,
+        1,
+        &segmento,
+        1,
+        NULL,
+        &metrica,
+        1,
+        &cantidad_metricas_requerida) == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_metricas_requerida == 0);
+    COMPROBAR(segmento.proceso_id == 99 && metrica.proceso_id == 98);
+
+    cantidad_segmentos_requerida = -1;
+    cantidad_metricas_requerida = -1;
+    COMPROBAR(planificador_fcfs_v1(
+        NULL,
+        1,
+        &segmento,
+        1,
+        &cantidad_segmentos_requerida,
+        &metrica,
+        1,
+        &cantidad_metricas_requerida) == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos_requerida == 0);
+    COMPROBAR(cantidad_metricas_requerida == 0);
+    COMPROBAR(segmento.proceso_id == 99 && metrica.proceso_id == 98);
+    return 0;
+}
+
+static int probar_sjf_llegadas_ocio_no_expropiacion_y_metricas(void)
+{
+    const proceso_t procesos[] = {
+        { .id = 1, .llegada = 2, .rafaga = 6, .prioridad = 0 },
+        { .id = 2, .llegada = 3, .rafaga = 2, .prioridad = 0 },
+        { .id = 3, .llegada = 4, .rafaga = 1, .prioridad = 0 },
+        { .id = 4, .llegada = 15, .rafaga = 2, .prioridad = 0 }
+    };
+    const segmento_t esperados[] = {
+        { .proceso_id = 0, .inicio = 0, .fin = 2, .es_ocioso = 1 },
+        { .proceso_id = 1, .inicio = 2, .fin = 8, .es_ocioso = 0 },
+        { .proceso_id = 3, .inicio = 8, .fin = 9, .es_ocioso = 0 },
+        { .proceso_id = 2, .inicio = 9, .fin = 11, .es_ocioso = 0 },
+        { .proceso_id = 0, .inicio = 11, .fin = 15, .es_ocioso = 1 },
+        { .proceso_id = 4, .inicio = 15, .fin = 17, .es_ocioso = 0 }
+    };
+    const metricas_proceso_t metricas_esperadas[] = {
+        { .proceso_id = 1, .espera = 0, .retorno = 6, .respuesta = 0 },
+        { .proceso_id = 2, .espera = 6, .retorno = 8, .respuesta = 6 },
+        { .proceso_id = 3, .espera = 4, .retorno = 5, .respuesta = 4 },
+        { .proceso_id = 4, .espera = 0, .retorno = 2, .respuesta = 0 }
+    };
+    segmento_t segmentos[sizeof(esperados) / sizeof(esperados[0])];
+    metricas_proceso_t metricas[sizeof(procesos) / sizeof(procesos[0])];
+    size_t cantidad_segmentos = 0;
+
+    COMPROBAR(planificador_sjf(
+        procesos,
+        sizeof(procesos) / sizeof(procesos[0]),
+        segmentos,
+        sizeof(segmentos) / sizeof(segmentos[0]),
+        &cantidad_segmentos,
+        metricas,
+        sizeof(metricas) / sizeof(metricas[0])) == PLANIFICADOR_OK);
+    COMPROBAR(cantidad_segmentos == sizeof(esperados) / sizeof(esperados[0]));
+
+    for (size_t i = 0; i < cantidad_segmentos; i++) {
+        COMPROBAR(comprobar_segmento(
+            &segmentos[i],
+            esperados[i].proceso_id,
+            esperados[i].inicio,
+            esperados[i].fin,
+            esperados[i].es_ocioso));
+    }
+    for (size_t i = 0; i < sizeof(procesos) / sizeof(procesos[0]); i++) {
+        COMPROBAR(comprobar_metrica(
+            &metricas[i],
+            metricas_esperadas[i].proceso_id,
+            metricas_esperadas[i].espera,
+            metricas_esperadas[i].retorno,
+            metricas_esperadas[i].respuesta));
+    }
+    return 0;
+}
+
+static int probar_sjf_desempates_provisionales(void)
+{
+    const proceso_t procesos[] = {
+        { .id = 1, .llegada = 0, .rafaga = 4, .prioridad = 0 },
+        { .id = 2, .llegada = 1, .rafaga = 2, .prioridad = 9 },
+        { .id = 3, .llegada = 1, .rafaga = 2, .prioridad = 2 },
+        { .id = 4, .llegada = 1, .rafaga = 2, .prioridad = 2 },
+        { .id = 5, .llegada = 2, .rafaga = 2, .prioridad = 1 }
+    };
+    const int32_t orden_esperado[] = { 1, 3, 4, 2, 5 };
+    segmento_t segmentos[sizeof(procesos) / sizeof(procesos[0])];
+    metricas_proceso_t metricas[sizeof(procesos) / sizeof(procesos[0])];
+    size_t cantidad_segmentos = 0;
+
+    COMPROBAR(planificador_sjf(
+        procesos,
+        sizeof(procesos) / sizeof(procesos[0]),
+        segmentos,
+        sizeof(segmentos) / sizeof(segmentos[0]),
+        &cantidad_segmentos,
+        metricas,
+        sizeof(metricas) / sizeof(metricas[0])) == PLANIFICADOR_OK);
+    COMPROBAR(cantidad_segmentos == sizeof(orden_esperado) / sizeof(orden_esperado[0]));
+    for (size_t i = 0; i < cantidad_segmentos; i++) {
+        COMPROBAR(segmentos[i].proceso_id == orden_esperado[i]);
+    }
+    return 0;
+}
+
+static int probar_sjf_capacidad_insuficiente_sin_escritura(void)
+{
+    const proceso_t proceso = {
+        .id = 7,
+        .llegada = 3,
+        .rafaga = 2,
+        .prioridad = 0
+    };
+    segmento_t segmentos[2] = {
+        { .proceso_id = 91, .inicio = 92, .fin = 93, .es_ocioso = 94 },
+        { .proceso_id = 81, .inicio = 82, .fin = 83, .es_ocioso = 84 }
+    };
+    metricas_proceso_t metrica = {
+        .proceso_id = 71,
+        .espera = 72,
+        .retorno = 73,
+        .respuesta = 74
+    };
+    size_t cantidad_segmentos = 0;
+
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, segmentos, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_CAPACIDAD_INSUFICIENTE);
+    COMPROBAR(cantidad_segmentos == 2);
+    COMPROBAR(segmentos[0].proceso_id == 91 && segmentos[1].proceso_id == 81);
+    COMPROBAR(metrica.proceso_id == 71 && metrica.espera == 72);
+
+    cantidad_segmentos = 0;
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, segmentos, 2, &cantidad_segmentos, &metrica, 0)
+        == PLANIFICADOR_CAPACIDAD_INSUFICIENTE);
+    COMPROBAR(cantidad_segmentos == 2);
+    COMPROBAR(segmentos[0].proceso_id == 91 && segmentos[1].proceso_id == 81);
+    COMPROBAR(metrica.proceso_id == 71 && metrica.espera == 72);
+    return 0;
+}
+
+static int probar_sjf_argumentos_invalidos(void)
+{
+    proceso_t proceso = { .id = 1, .llegada = 0, .rafaga = 1, .prioridad = 0 };
+    segmento_t segmento = { .proceso_id = 91, .inicio = 92, .fin = 93, .es_ocioso = 94 };
+    metricas_proceso_t metrica = {
+        .proceso_id = 71,
+        .espera = 72,
+        .retorno = 73,
+        .respuesta = 74
+    };
+    size_t cantidad_segmentos = 99;
+
+    COMPROBAR(planificador_sjf(
+        &proceso, 0, &segmento, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, &segmento, 1, NULL, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(segmento.proceso_id == 91 && metrica.proceso_id == 71);
+
+    cantidad_segmentos = 99;
+    COMPROBAR(planificador_sjf(
+        NULL, 1, &segmento, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+
+    cantidad_segmentos = 99;
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, NULL, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+
+    cantidad_segmentos = 99;
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, &segmento, 1, &cantidad_segmentos, NULL, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+
+    proceso.llegada = -1;
+    cantidad_segmentos = 99;
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, &segmento, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+    proceso.llegada = 0;
+    proceso.rafaga = 0;
+    cantidad_segmentos = 99;
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, &segmento, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_ARGUMENTO_INVALIDO);
+    COMPROBAR(cantidad_segmentos == 0);
+    COMPROBAR(segmento.proceso_id == 91 && metrica.proceso_id == 71);
+    return 0;
+}
+
+static int probar_sjf_desbordamiento_sin_escritura(void)
+{
+    const proceso_t proceso = {
+        .id = 5,
+        .llegada = INT64_MAX,
+        .rafaga = 1,
+        .prioridad = 0
+    };
+    segmento_t segmento = { .proceso_id = 91, .inicio = 92, .fin = 93, .es_ocioso = 94 };
+    metricas_proceso_t metrica = {
+        .proceso_id = 71,
+        .espera = 72,
+        .retorno = 73,
+        .respuesta = 74
+    };
+    size_t cantidad_segmentos = 99;
+
+    COMPROBAR(planificador_sjf(
+        &proceso, 1, &segmento, 1, &cantidad_segmentos, &metrica, 1)
+        == PLANIFICADOR_DESBORDAMIENTO_TIEMPO);
+    COMPROBAR(cantidad_segmentos == 0);
+    COMPROBAR(segmento.proceso_id == 91
+        && segmento.inicio == 92
+        && segmento.fin == 93
+        && segmento.es_ocioso == 94);
+    COMPROBAR(metrica.proceso_id == 71
+        && metrica.espera == 72
+        && metrica.retorno == 73
+        && metrica.respuesta == 74);
+    return 0;
+}
+
 int main(void)
 {
     COMPROBAR(probar_llegadas_desempates_y_ocio() == 0);
     COMPROBAR(probar_un_proceso_y_ocio_inicial() == 0);
     COMPROBAR(probar_validacion_y_capacidad() == 0);
+    COMPROBAR(probar_desempates_fcfs() == 0);
+    COMPROBAR(probar_errores_no_escriben_resultados() == 0);
     COMPROBAR(probar_exito_v1_equivale_a_fcfs() == 0);
     COMPROBAR(probar_capacidades_insuficientes_v1() == 0);
     COMPROBAR(probar_desbordamiento_v1() == 0);
-    puts("OK: pruebas FCFS/FIFO");
+    COMPROBAR(probar_argumentos_invalidos_v1() == 0);
+    COMPROBAR(probar_sjf_llegadas_ocio_no_expropiacion_y_metricas() == 0);
+    COMPROBAR(probar_sjf_desempates_provisionales() == 0);
+    COMPROBAR(probar_sjf_capacidad_insuficiente_sin_escritura() == 0);
+    COMPROBAR(probar_sjf_argumentos_invalidos() == 0);
+    COMPROBAR(probar_sjf_desbordamiento_sin_escritura() == 0);
+    puts("OK: pruebas nativas FCFS/FIFO y SJF");
     return 0;
 }
