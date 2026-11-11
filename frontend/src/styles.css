@@ -1,0 +1,23 @@
+/* You can add global styles to this file, and also import other style files */
+/* src/styles.css */
+:root {
+  --primary-blue: #0b50a1;
+  --sidebar-active: #2b7bc0;
+  --bg-main: #f0f4f8;
+  --card-bg: #ffffff;
+  --text-dark: #1e293b;
+  --text-muted: #64748b;
+  --accent-cyan: #22b8cf;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-dark);
+}

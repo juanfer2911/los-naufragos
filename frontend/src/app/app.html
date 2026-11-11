@@ -1,0 +1,311 @@
+<!-- app.html -->
+<section *ngIf="!sesionIniciada()" class="login-page">
+  <div class="login-art">
+    <div class="login-brand"><span class="brand-sail">&#9973;</span><strong>Los N&aacute;ufragos</strong><small>SIMULADOR DE PLANIFICACI&Oacute;N DE PROCESOS</small></div>
+    <blockquote>&quot;La mejor forma de decidir no es adivinar, es simular.&quot;<small>- Bit&aacute;cora del naufragio -</small></blockquote>
+  </div>
+  <div class="login-panel">
+    <div class="uceva-mark">UCEVA <small>Instituci&oacute;n de Educaci&oacute;n Superior</small></div>
+    <form (ngSubmit)="iniciarSesion()">
+      <h1><ng-container *ngIf="modoRegistro(); else tituloLogin">Crear cuenta</ng-container><ng-template #tituloLogin>Iniciar Sesi&oacute;n</ng-template></h1>
+      <p>Acceso al simulador de planificaci&oacute;n de procesos</p>
+      <label>Usuario o correo<input name="correo" [(ngModel)]="correo" required autocomplete="username" placeholder="Usuario o Correo"></label>
+      <label>Contrase&ntilde;a<input name="contrasena" [(ngModel)]="contrasena" required type="password" autocomplete="current-password" placeholder="Contrase&ntilde;a"></label>
+      <button class="primary-button" type="submit"><ng-container *ngIf="modoRegistro(); else textoLogin">Crear cuenta</ng-container><ng-template #textoLogin>Iniciar Sesi&oacute;n</ng-template> <span aria-hidden="true">&#8594;</span></button>
+      <button class="link-button" type="button" (click)="alternarModoRegistro()"><ng-container *ngIf="modoRegistro(); else enlaceRegistro">Ya tengo cuenta</ng-container><ng-template #enlaceRegistro>&iquest;A&uacute;n no tiene cuenta? Crear cuenta</ng-template></button>
+      <div class="security-note">&#128274; Los Naufragos · Simulador CPU</div>
+    </form>
+  </div>
+</section>
+
+<div *ngIf="sesionIniciada()" class="app-shell" style="display: flex; min-height: 100vh; background-color: #f0f4f8; font-family: 'Segoe UI', system-ui, sans-serif;">
+
+  <!-- BARRA LATERAL AZUL -->
+  <aside class="sidebar" style="width: 260px; background: linear-gradient(180deg, #063970 0%, #0d5ea8 60%, #1579c1 100%); color: white; padding: 24px 16px; display: flex; flex-direction: column;">
+
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 36px; padding-left: 8px;">
+      <span style="font-size: 24px;">&#9973;</span>
+      <div>
+        <h2 style="font-size: 19px; font-weight: 700; color: white; margin: 0;">Los N&aacute;ufragos</h2>
+        <span style="font-size: 10px; letter-spacing: 1.5px; opacity: 0.8;">SIMULADOR CPU</span>
+      </div>
+    </div>
+
+    <nav style="display: flex; flex-direction: column; gap: 8px;">
+      <button class="nav-btn" [class.active]="vistaActual() === 'inicio'" (click)="cambiarVista('inicio')">&#8962; Inicio</button>
+      <button class="nav-btn" [class.active]="vistaActual() === 'configuracion'" (click)="cambiarVista('configuracion')">&#9881; Configuraci&oacute;n</button>
+      <button class="nav-btn" [class.active]="vistaActual() === 'resultados'" (click)="cambiarVista('resultados')">&#9636; Resultados</button>
+      <button class="nav-btn" [class.active]="vistaActual() === 'conjuntos'" (click)="cambiarVista('conjuntos')">&#128194; Conjuntos de Prueba</button>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="main-content" style="flex: 1; padding: 32px 40px; overflow-y: auto;">
+
+    <!-- HEADER -->
+    <header style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+      <div>
+        <h1 style="font-size: 24px; color: #0f172a; margin: 0 0 4px 0; font-weight: 700;">
+          <ng-container [ngSwitch]="vistaActual()">
+            <span *ngSwitchCase="'inicio'">Inicio</span><span *ngSwitchCase="'configuracion'">Configuraci&oacute;n de la Simulaci&oacute;n</span>
+            <span *ngSwitchCase="'resultados'">Resultados y Gr&aacute;ficas de Simulaci&oacute;n</span><span *ngSwitchCase="'conjuntos'">Gesti&oacute;n de Conjuntos de Prueba</span>
+          </ng-container>
+        </h1>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">
+          <ng-container [ngSwitch]="vistaActual()">
+            <span *ngSwitchCase="'inicio'">Configure procesos, ejecute algoritmos y compare sus resultados.</span>
+            <span *ngSwitchCase="'configuracion'">Ingrese los procesos y seleccione los algoritmos que desea comparar.</span>
+            <span *ngSwitchCase="'resultados'">Visualice el Gantt, compare m&eacute;tricas de retorno, espera y respuesta.</span>
+            <span *ngSwitchCase="'conjuntos'">Cree, edite y configure bancos de prueba para sus simulaciones.</span>
+          </ng-container>
+        </p>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="text-align: right;">
+          <div style="font-weight: 600; font-size: 14px; color: #1e293b;">{{ usuario }}</div>
+          <div style="font-size: 12px; color: #64748b;">Estudiante UCEVA</div>
+        </div>
+        <div style="width: 36px; height: 36px; background: #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569;">JP</div>
+        <button style="background: white; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; color: #334155;" (click)="cerrarSesion()">Cerrar Sesi&oacute;n</button>
+      </div>
+    </header>
+
+    <!-- VISTA 1: CONFIGURACI&Oacute;N -->
+    <section *ngIf="vistaActual() === 'inicio'" class="welcome-panel">
+      <h2>Bienvenido al simulador de procesos</h2><p>Comience configurando una carga de procesos o abra uno de sus conjuntos guardados.</p>
+      <div class="welcome-actions"><button class="primary-button" (click)="cambiarVista('configuracion')">Configurar simulaci&oacute;n</button><button class="secondary-button" (click)="cambiarVista('conjuntos')">Ver conjuntos de prueba</button></div>
+    </section>
+
+    <div *ngIf="vistaActual() === 'configuracion'" class="configuration-layout" style="display: grid; grid-template-columns: 1fr 300px; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+
+        <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 16px; color: #0f172a;">Lista de Procesos Cargados</h3>
+            <button style="background: #2b84ea; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;" (click)="abrirNuevoProceso()">+ Agregar Proceso</button>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+            <tr style="border-bottom: 2px solid #f1f5f9; text-align: left; color: #64748b;">
+              <th style="padding: 10px;">PID</th>
+              <th style="padding: 10px;">T. Llegada (ms)</th>
+              <th style="padding: 10px;">R&aacute;faga CPU (ms)</th>
+              <th style="padding: 10px;">Prioridad</th>
+              <th style="padding: 10px; text-align: center;">Acciones</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr style="border-bottom: 1px solid #f1f5f9;" *ngFor="let p of procesos()">
+              <td style="padding: 12px 10px; font-weight: 700; color: #0f172a;">P{{ p.pid }}</td>
+              <td style="padding: 12px 10px; color: #334155;">{{ p.llegada }}</td>
+              <td style="padding: 12px 10px; color: #334155;">{{ p.rafaga }}</td>
+              <td style="padding: 12px 10px; color: #334155;">{{ p.prioridad }}</td>
+              <td style="padding: 12px 10px; text-align: center;">
+                <button style="border: none; background: transparent; cursor: pointer; margin-right: 8px; color: #2b84ea; font-weight: bold;" (click)="editarProceso(p)">Editar</button>
+                <button style="border: none; background: transparent; cursor: pointer; color: #dc2626; font-weight: bold;" (click)="eliminarProceso(p.pid)">Borrar</button>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+          <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #0f172a;">Algoritmos a Ejecutar</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+              <input type="checkbox" [checked]="algoritmosActivos().includes('FIFO')" (change)="alternarAlgoritmo('FIFO', $any($event.target).checked)" style="margin-top: 3px;">
+              <div><strong style="display: block; font-size: 14px;">FIFO</strong><span style="font-size: 12px; color: #64748b;">First In, First Out</span></div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+              <input type="checkbox" [checked]="algoritmosActivos().includes('SJF')" (change)="alternarAlgoritmo('SJF', $any($event.target).checked)" style="margin-top: 3px;">
+              <div><strong style="display: block; font-size: 14px;">SJF</strong><span style="font-size: 12px; color: #64748b;">Shortest Job First</span></div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+              <input type="checkbox" [checked]="algoritmosActivos().includes('SRTF')" (change)="alternarAlgoritmo('SRTF', $any($event.target).checked)" style="margin-top: 3px;">
+              <div><strong style="display: block; font-size: 14px;">SRTF</strong><span style="font-size: 12px; color: #64748b;">Shortest Remaining Time</span></div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+              <input type="checkbox" [checked]="algoritmosActivos().includes('RR')" (change)="alternarAlgoritmo('RR', $any($event.target).checked)" style="margin-top: 3px;">
+              <div><strong style="display: block; font-size: 14px;">Round Robin</strong><span style="font-size: 12px; color: #64748b;">Quantum: <input type="number" min="1" [ngModel]="quantum()" (ngModelChange)="quantum.set(+$event)" name="quantum" style="width: 48px; padding: 2px;"></span></div>
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+          <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #0f172a;">Cargar Conjunto de Prueba</h4>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Seleccione una configuraci&oacute;n guardada previamente.</p>
+          <select [ngModel]="conjuntoSeleccionado()" (ngModelChange)="conjuntoSeleccionado.set(+$event)" [ngModelOptions]="{standalone: true}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; margin-bottom: 16px; background: #f8fafc;">
+            <option *ngFor="let conjunto of conjuntos()" [ngValue]="conjunto.id">{{ conjunto.nombre }}</option>
+          </select>
+          <button style="width: 100%; background: #0f2b48; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;" (click)="cargarConjunto(conjuntoSeleccionado())">Cargar Escenario</button>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #2b84ea 0%, #1d68c4 100%); border-radius: 12px; padding: 32px 20px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(43, 132, 234, 0.3); cursor: pointer;" (click)="cambiarVista('resultados')">
+          <div style="font-size: 28px; font-weight: bold; margin-bottom: 4px;">PLAY</div>
+          <h3 style="margin: 0 0 4px 0; font-size: 18px;">Ejecutar Simulaci&oacute;n</h3>
+          <p style="margin: 0; font-size: 12px; opacity: 0.9;">Compara los algoritmos en tiempo real</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- VISTA 2: RESULTADOS Y GANTT -->
+    <div *ngIf="vistaActual() === 'resultados'" class="results-layout" style="display: flex; flex-direction: column; gap: 24px;">
+
+      <!-- PESTA&Ntilde;AS DE ALGORITMOS -->
+      <!-- PESTA&Ntilde;AS DE ALGORITMOS -->
+      <div style="display: flex; gap: 12px;">
+        <button
+          *ngIf="algoritmosActivos().includes('SJF')"
+          [class.active-tab]="algoritmoSeleccionado() === 'SJF'"
+          (click)="cambiarAlgoritmo('SJF')"
+          class="btn-tab">
+          SJF (&Oacute;ptimo)
+        </button>
+
+        <button
+          *ngIf="algoritmosActivos().includes('FIFO')"
+          [class.active-tab]="algoritmoSeleccionado() === 'FIFO'"
+          (click)="cambiarAlgoritmo('FIFO')"
+          class="btn-tab">
+          FIFO
+        </button>
+
+        <button
+          *ngIf="algoritmosActivos().includes('SRTF')"
+          [class.active-tab]="algoritmoSeleccionado() === 'SRTF'"
+          (click)="cambiarAlgoritmo('SRTF')"
+          class="btn-tab">
+          SRTF
+        </button>
+
+        <button
+          *ngIf="algoritmosActivos().includes('RR')"
+          [class.active-tab]="algoritmoSeleccionado() === 'RR'"
+          (click)="cambiarAlgoritmo('RR')"
+          class="btn-tab">
+          Round Robin
+        </button>
+      </div>
+      <p *ngIf="algoritmosActivos().length === 0" class="empty-state">Seleccione al menos un algoritmo en Configuraci&oacute;n.</p>
+
+      <!-- TARJETA DIAGRAMA DE GANTT -->
+      <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 16px; color: #0f172a;">Diagrama de Gantt - {{ algoritmoSeleccionado() }}</h3>
+
+          <div style="display: flex; gap: 12px; font-size: 12px; color: #64748b;">
+            <span *ngFor="let pid of procesos()" style="display: flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px;" [style.background-color]="colorProceso(pid.pid)"></span> P{{ pid.pid }}</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; background: #94a3b8; border-radius: 3px;"></span> Ociosa</span>
+          </div>
+        </div>
+
+        <div style="display: flex; border-radius: 8px; overflow: hidden; height: 48px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+          <div *ngFor="let r of rebanadasGantt()"
+               [style.flex-grow]="r.fin - r.inicio"
+               [style.background-color]="r.color"
+               style="color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.3); font-size: 14px; flex-basis: 0; min-width: 0; overflow: hidden;">
+            {{ r.pid === -1 ? 'CPU Ociosa' : 'P' + r.pid }}
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-top: 6px; padding: 0 4px;">
+          <span>0 ms</span>
+          <span *ngFor="let rebanada of rebanadasGantt()">{{ rebanada.fin }} ms</span>
+        </div>
+      </div>
+
+      <!-- TARJETA M&Eacute;TRICAS POR PROCESO -->
+      <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+        <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #0f172a;">M&eacute;tricas por Proceso - {{ algoritmoSeleccionado() }}</h3>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <thead>
+          <tr style="border-bottom: 2px solid #f1f5f9; text-align: left; color: #64748b;">
+            <th style="padding: 10px;">Proceso</th>
+            <th style="padding: 10px;">Llegada</th>
+            <th style="padding: 10px;">R&aacute;faga</th>
+            <th style="padding: 10px;">Fin</th>
+            <th style="padding: 10px;">Retorno</th>
+            <th style="padding: 10px;">Espera</th>
+            <th style="padding: 10px;">Respuesta</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr *ngFor="let m of metricas()" style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 12px 10px; font-weight: 700; color: #0f172a;">P{{ m.pid }}</td>
+            <td style="padding: 12px 10px; color: #334155;">{{ m.llegada }} ms</td>
+            <td style="padding: 12px 10px; color: #334155;">{{ m.rafaga }} ms</td>
+            <td style="padding: 12px 10px; color: #334155;">{{ m.fin }} ms</td>
+            <td style="padding: 12px 10px; color: #334155;">{{ m.retorno }} ms</td>
+            <td style="padding: 12px 10px; color: #334155;">{{ m.espera }} ms</td>
+            <td style="padding: 12px 10px; color: #334155;">{{ m.respuesta }} ms</td>
+          </tr>
+          <tr style="background: #fef9c3; font-weight: bold; border-top: 2px solid #fef08a;">
+            <td style="padding: 12px 10px; color: #854d0e;">Promedios</td>
+            <td style="padding: 12px 10px;">&#8212;</td>
+            <td style="padding: 12px 10px; color: #854d0e;">{{ promedioRafaga() | number:'1.1-1' }} ms</td>
+            <td style="padding: 12px 10px;">&#8212;</td>
+            <td style="padding: 12px 10px; color: #854d0e;">{{ promedioRetorno() | number:'1.1-1' }} ms</td>
+            <td style="padding: 12px 10px; color: #854d0e;">{{ promedioEspera() | number:'1.1-1' }} ms</td>
+            <td style="padding: 12px 10px; color: #854d0e;">{{ promedioRespuesta() | number:'1.1-1' }} ms</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- BANNER VERDE -->
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #dcfce7; border: 1px solid #86efac; padding: 16px 24px; border-radius: 12px; color: #166534;">
+        <div style="font-weight: 600; font-size: 14px;">
+          <ng-container *ngIf="algoritmoGanador() as ganador; else sinComparacion">El algoritmo {{ ganador.algoritmo }} obtuvo el menor tiempo medio de espera: {{ ganador.espera | number:'1.1-1' }} ms</ng-container>
+          <ng-template #sinComparacion>Seleccione algoritmos para comparar el tiempo medio de espera.</ng-template>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button style="background: #0f2b48; color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;" (click)="exportarInforme()">Exportar Informe PDF</button>
+          <button style="background: white; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; color: #334155;" (click)="cambiarVista('configuracion')">Nueva Simulaci&oacute;n</button>
+        </div>
+      </div>
+
+    </div>
+
+    <section *ngIf="vistaActual() === 'conjuntos'" class="content-card test-bank-page">
+      <div class="section-heading"><h2>Bancos de Prueba Guardados</h2><button class="primary-button" type="button" (click)="cancelarEdicionConjunto()">+ Crear Nuevo Banco</button></div>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Nombre</th><th>Descripci&oacute;n</th><th>Fecha Creaci&oacute;n</th><th>Procesos</th><th>Acciones</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let conjunto of conjuntos()">
+            <td><strong>{{ conjunto.nombre }}</strong></td><td>{{ conjunto.descripcion }}</td><td>{{ conjunto.fecha }}</td><td>{{ conjunto.procesos.length }}</td>
+            <td class="row-actions"><button type="button" (click)="cargarConjunto(conjunto.id)">Cargar</button><button type="button" (click)="editarConjunto(conjunto)">Editar</button><button type="button" class="danger-link" (click)="eliminarConjunto(conjunto.id)">Eliminar</button></td>
+          </tr>
+          <tr *ngIf="conjuntos().length === 0"><td colspan="5" class="empty-state">A&uacute;n no hay conjuntos guardados.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section *ngIf="vistaActual() === 'conjuntos'" class="content-card bank-editor">
+      <h2>{{ conjuntoEditando() === null ? 'Crear Nuevo Banco de Prueba' : 'Editar Banco de Prueba' }}</h2>
+      <div class="bank-fields">
+        <label>Nombre del Conjunto<input name="nombreConjunto" [(ngModel)]="nombreConjunto" placeholder="Ej. Prueba 5 - Carga Alta" required></label>
+        <label>Descripci&oacute;n (opcional)<input name="descripcionConjunto" [(ngModel)]="descripcionConjunto" placeholder="Breve rese&ntilde;a de las r&aacute;fagas..."></label>
+      </div>
+      <h3>Procesos incluidos ({{ procesos().length }})</h3>
+      <div class="process-chips"><span *ngFor="let p of procesos()">P{{ p.pid }} &middot; {{ p.llegada }} ms &middot; {{ p.rafaga }} ms</span><span *ngIf="!procesos().length">Agregue procesos desde Configuraci&oacute;n.</span></div>
+      <div class="form-actions"><button type="button" class="secondary-button" (click)="cancelarEdicionConjunto()">Cancelar</button><button type="button" class="primary-button" (click)="guardarConjunto()" [disabled]="!nombreConjunto.trim()">Guardar Banco</button></div>
+    </section>
+
+    <div *ngIf="mostrarFormularioProceso()" class="modal-backdrop" (click)="mostrarFormularioProceso.set(false)">
+      <form class="process-modal" (ngSubmit)="guardarProceso()" (click)="$event.stopPropagation()">
+        <h2>{{ procesoEditando() === null ? 'Agregar Proceso' : 'Editar Proceso' }}</h2>
+        <label>Tiempo de llegada (ms)<input name="llegada" type="number" min="0" [(ngModel)]="borradorProceso.llegada" required></label>
+        <label>R&aacute;faga CPU (ms)<input name="rafaga" type="number" min="1" [(ngModel)]="borradorProceso.rafaga" required></label>
+        <label>Prioridad<input name="prioridad" type="number" min="1" [(ngModel)]="borradorProceso.prioridad" required></label>
+        <div class="form-actions"><button type="button" class="secondary-button" (click)="mostrarFormularioProceso.set(false)">Cancelar</button><button type="submit" class="primary-button">Guardar Proceso</button></div>
+      </form>
+    </div>
+
+  </main>
+</div>
