@@ -79,6 +79,44 @@ planificador_estado_t planificador_sjf(
     size_t capacidad_metricas);
 
 /*
+ * Ejecuta SRTF de forma expropiativa y basada en eventos de llegada o
+ * finalizacion, sin avanzar unidad por unidad. El menor tiempo restante es
+ * el criterio principal. Si el proceso actual empata con otro en tiempo
+ * restante, conserva la CPU; sin proceso actual, se propone desempatar por
+ * llegada menor, prioridad numerica menor y orden original. Estos criterios
+ * son provisionales y estan pendientes de confirmacion con el profesor.
+ * Las metricas se escriben en orden de entrada. Ante capacidad insuficiente
+ * informa el total requerido de segmentos sin modificar los buffers.
+ */
+planificador_estado_t planificador_srtf(
+    const proceso_t *procesos,
+    size_t cantidad,
+    segmento_t *segmentos,
+    size_t capacidad_segmentos,
+    size_t *cantidad_segmentos,
+    metricas_proceso_t *metricas,
+    size_t capacidad_metricas);
+
+/*
+ * Ejecuta Round Robin con quantum positivo, expresado en las mismas
+ * unidades que llegada y rafaga. Las llegadas se incorporan a la cola por
+ * llegada ascendente y, en empate, orden original. Al vencer el quantum,
+ * primero se agregan las llegadas con tiempo <= reloj y luego se reinserta
+ * el proceso si sigue pendiente. La prioridad no altera el orden FIFO.
+ * Las metricas se escriben en orden de entrada. Ante capacidad insuficiente
+ * informa el total requerido de segmentos sin modificar los buffers.
+ */
+planificador_estado_t planificador_rr(
+    const proceso_t *procesos,
+    size_t cantidad,
+    int64_t quantum,
+    segmento_t *segmentos,
+    size_t capacidad_segmentos,
+    size_t *cantidad_segmentos,
+    metricas_proceso_t *metricas,
+    size_t capacidad_metricas);
+
+/*
  * Interfaz versionada con cantidades y capacidades int32_t.
  *
  * Ambos contadores de salida son obligatorios. Si alguno es NULL, devuelve

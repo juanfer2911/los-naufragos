@@ -432,6 +432,737 @@ liberar_planificacion:
 }
 
 /* ============================================================
+ * ALGORITMO SRTF EXPROPIATIVO
+ * ============================================================ */
+typedef struct {
+    size_t indice_original;
+    int64_t llegada;
+    int64_t restante;
+    int32_t prioridad;
+    int64_t primer_inicio;
+    int64_t finalizacion;
+} proceso_srtf_t;
+
+/*
+ * Cuando no se conserva el proceso actual, los empates se resuelven por
+ * llegada, prioridad y orden original. La politica es provisional.
+ */
+static int es_preferible_srtf(
+    const proceso_srtf_t *candidato,
+    const proceso_srtf_t *actual)
+{
+    if (candidato->restante != actual->restante) {
+        return candidato->restante < actual->restante;
+    }
+    if (candidato->llegada != actual->llegada) {
+        return candidato->llegada < actual->llegada;
+    }
+    if (candidato->prioridad != actual->prioridad) {
+        return candidato->prioridad < actual->prioridad;
+    }
+    return candidato->indice_original < actual->indice_original;
+}
+
+static size_t seleccionar_proceso_srtf(
+    const proceso_srtf_t *planificacion,
+    size_t cantidad,
+    int64_t reloj_cpu,
+    size_t proceso_actual)
+{
+    size_t indice_elegido = cantidad;
+
+    for (size_t i = 0; i < cantidad; i++) {
+        if (planificacion[i].restante > 0
+            && planificacion[i].llegada <= reloj_cpu
+            && (indice_elegido == cantidad
+                || es_preferible_srtf(
+                    &planificacion[i],
+                    &planificacion[indice_elegido]))) {
+            indice_elegido = i;
+        }
+    }
+
+    if (proceso_actual < cantidad
+        && planificacion[proceso_actual].restante > 0
+        && planificacion[proceso_actual].llegada <= reloj_cpu
+        && indice_elegido < cantidad
+        && planificacion[proceso_actual].restante
+           == planificacion[indice_elegido].restante) {
+        return proceso_actual;
+    }
+    return indice_elegido;
+}
+
+static metricas_proceso_t calcular_metricas_srtf(
+    const proceso_t *proceso,
+    int64_t primer_inicio,
+    int64_t finalizacion)
+{
+    int64_t retorno = finalizacion - proceso->llegada;
+    return (metricas_proceso_t) {
+        .proceso_id = proceso->id,
+        .espera = retorno - proceso->rafaga,
+        .retorno = retorno,
+        .respuesta = primer_inicio - proceso->llegada
+    };
+}
+
+/*
+ * Simula SRTF hasta completar todos los procesos. Si se entregan buffers
+ * temporales, escribe alli los segmentos y metricas; nunca recibe los
+ * buffers publicos directamente.
+ */
+static planificador_estado_t simular_srtf(
+    const proceso_t *procesos,
+    proceso_srtf_t *planificacion,
+    size_t cantidad,
+    segmento_t *segmentos_temporales,
+    metricas_proceso_t *metricas_temporales,
+    size_t *cantidad_segmentos)
+{
+    size_t terminados = 0;
+    size_t total_segmentos = 0;
+    size_t ultimo_indice_proceso = cantidad;
+    size_t proceso_actual = cantidad;
+    int ultimo_segmento_ocioso = 0;
+    int64_t reloj_cpu = 0;
+
+    for (size_t i = 0; i < cantidad; i++) {
+        planificacion[i] = (proceso_srtf_t) {
+            .indice_original = i,
+            .llegada = procesos[i].llegada,
+            .restante = procesos[i].rafaga,
+            .prioridad = procesos[i].prioridad,
+            .primer_inicio = -1,
+            .finalizacion = -1
+        };
+    }
+
+    while (terminados < cantidad) {
+        size_t elegido = seleccionar_proceso_srtf(
+            planificacion,
+            cantidad,
+            reloj_cpu,
+            proceso_actual);
+
+        if (elegido == cantidad) {
+            size_t indice_proxima_llegada = cantidad;
+            for (size_t i = 0; i < cantidad; i++) {
+                if (planificacion[i].restante > 0
+                    && planificacion[i].llegada > reloj_cpu
+                    && (indice_proxima_llegada == cantidad
+                        || planificacion[i].llegada
+                           < planificacion[indice_proxima_llegada].llegada)) {
+                    indice_proxima_llegada = i;
+                }
+            }
+            if (indice_proxima_llegada == cantidad) {
+                return PLANIFICADOR_ARGUMENTO_INVALIDO;
+            }
+
+            int64_t fin_ocio = planificacion[indice_proxima_llegada].llegada;
+            if (total_segmentos == SIZE_MAX) {
+                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+            }
+            if (segmentos_temporales != NULL) {
+                segmentos_temporales[total_segmentos] = (segmento_t) {
+                    .proceso_id = 0,
+                    .inicio = reloj_cpu,
+                    .fin = fin_ocio,
+                    .es_ocioso = 1
+                };
+            }
+            total_segmentos++;
+            ultimo_segmento_ocioso = 1;
+            ultimo_indice_proceso = cantidad;
+            reloj_cpu = fin_ocio;
+            proceso_actual = cantidad;
+            continue;
+        }
+
+        if (planificacion[elegido].primer_inicio < 0) {
+            planificacion[elegido].primer_inicio = reloj_cpu;
+        }
+
+        size_t indice_proxima_llegada = cantidad;
+        for (size_t i = 0; i < cantidad; i++) {
+            if (planificacion[i].restante > 0
+                && planificacion[i].llegada > reloj_cpu
+                && (indice_proxima_llegada == cantidad
+                    || planificacion[i].llegada
+                       < planificacion[indice_proxima_llegada].llegada)) {
+                indice_proxima_llegada = i;
+            }
+        }
+
+        int64_t fin_proceso;
+        planificador_estado_t estado = sumar_tiempo_seguro(
+            reloj_cpu,
+            planificacion[elegido].restante,
+            &fin_proceso);
+        if (estado != PLANIFICADOR_OK
+            && indice_proxima_llegada == cantidad) {
+            return estado;
+        }
+
+        int64_t fin_intervalo;
+        if (estado != PLANIFICADOR_OK
+            || (indice_proxima_llegada < cantidad
+                && planificacion[indice_proxima_llegada].llegada < fin_proceso)) {
+            fin_intervalo = planificacion[indice_proxima_llegada].llegada;
+        } else {
+            fin_intervalo = fin_proceso;
+        }
+
+        int64_t duracion = fin_intervalo - reloj_cpu;
+        if (duracion <= 0 || duracion > planificacion[elegido].restante) {
+            return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+        }
+
+        if (!ultimo_segmento_ocioso
+            && ultimo_indice_proceso == elegido
+            && total_segmentos > 0) {
+            if (segmentos_temporales != NULL) {
+                segmentos_temporales[total_segmentos - 1].fin = fin_intervalo;
+            }
+        } else {
+            if (total_segmentos == SIZE_MAX) {
+                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+            }
+            if (segmentos_temporales != NULL) {
+                segmentos_temporales[total_segmentos] = (segmento_t) {
+                    .proceso_id = procesos[planificacion[elegido].indice_original].id,
+                    .inicio = reloj_cpu,
+                    .fin = fin_intervalo,
+                    .es_ocioso = 0
+                };
+            }
+            total_segmentos++;
+        }
+
+        ultimo_segmento_ocioso = 0;
+        ultimo_indice_proceso = elegido;
+        planificacion[elegido].restante -= duracion;
+        reloj_cpu = fin_intervalo;
+        if (planificacion[elegido].restante == 0) {
+            planificacion[elegido].finalizacion = reloj_cpu;
+            terminados++;
+            proceso_actual = cantidad;
+        } else {
+            proceso_actual = elegido;
+        }
+    }
+
+    if (metricas_temporales != NULL) {
+        for (size_t i = 0; i < cantidad; i++) {
+            metricas_temporales[planificacion[i].indice_original] =
+                calcular_metricas_srtf(
+                    &procesos[planificacion[i].indice_original],
+                    planificacion[i].primer_inicio,
+                    planificacion[i].finalizacion);
+        }
+    }
+    *cantidad_segmentos = total_segmentos;
+    return PLANIFICADOR_OK;
+}
+
+planificador_estado_t planificador_srtf(
+    const proceso_t *procesos,
+    size_t cantidad,
+    segmento_t *segmentos,
+    size_t capacidad_segmentos,
+    size_t *cantidad_segmentos,
+    metricas_proceso_t *metricas,
+    size_t capacidad_metricas)
+{
+    proceso_srtf_t *planificacion;
+    segmento_t *segmentos_temporales = NULL;
+    metricas_proceso_t *metricas_temporales = NULL;
+    size_t cantidad_segmentos_calculada = 0;
+    planificador_estado_t estado;
+
+    if (cantidad_segmentos == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    *cantidad_segmentos = 0;
+    if (procesos == NULL || cantidad == 0 || segmentos == NULL || metricas == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    if (cantidad > SIZE_MAX / sizeof(*planificacion)
+        || cantidad > SIZE_MAX / sizeof(*metricas_temporales)) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+    for (size_t i = 0; i < cantidad; i++) {
+        if (procesos[i].llegada < 0 || procesos[i].rafaga <= 0) {
+            return PLANIFICADOR_ARGUMENTO_INVALIDO;
+        }
+    }
+
+    planificacion = malloc(cantidad * sizeof(*planificacion));
+    if (planificacion == NULL) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    estado = simular_srtf(
+        procesos,
+        planificacion,
+        cantidad,
+        NULL,
+        NULL,
+        &cantidad_segmentos_calculada);
+    if (estado != PLANIFICADOR_OK) {
+        free(planificacion);
+        return estado;
+    }
+
+    if (capacidad_segmentos < cantidad_segmentos_calculada
+        || capacidad_metricas < cantidad) {
+        *cantidad_segmentos = cantidad_segmentos_calculada;
+        free(planificacion);
+        return PLANIFICADOR_CAPACIDAD_INSUFICIENTE;
+    }
+    if (cantidad_segmentos_calculada > SIZE_MAX / sizeof(*segmentos_temporales)) {
+        free(planificacion);
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    segmentos_temporales =
+        malloc(cantidad_segmentos_calculada * sizeof(*segmentos_temporales));
+    metricas_temporales = malloc(cantidad * sizeof(*metricas_temporales));
+    if (segmentos_temporales == NULL || metricas_temporales == NULL) {
+        free(segmentos_temporales);
+        free(metricas_temporales);
+        free(planificacion);
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    estado = simular_srtf(
+        procesos,
+        planificacion,
+        cantidad,
+        segmentos_temporales,
+        metricas_temporales,
+        &cantidad_segmentos_calculada);
+    if (estado == PLANIFICADOR_OK) {
+        for (size_t i = 0; i < cantidad_segmentos_calculada; i++) {
+            segmentos[i] = segmentos_temporales[i];
+        }
+        for (size_t i = 0; i < cantidad; i++) {
+            metricas[i] = metricas_temporales[i];
+        }
+        *cantidad_segmentos = cantidad_segmentos_calculada;
+    }
+
+    free(segmentos_temporales);
+    free(metricas_temporales);
+    free(planificacion);
+    return estado;
+}
+
+/* ============================================================
+ * ALGORITMO ROUND ROBIN CON QUANTUM CONFIGURABLE
+ * ============================================================ */
+typedef struct {
+    size_t indice_original;
+    int64_t restante;
+    int64_t primer_inicio;
+    int64_t finalizacion;
+} proceso_rr_t;
+
+typedef struct {
+    int64_t llegada;
+    size_t indice_original;
+} llegada_rr_t;
+
+static int comparar_llegadas_rr(const void *izquierda, const void *derecha)
+{
+    const llegada_rr_t *llegada_izquierda = izquierda;
+    const llegada_rr_t *llegada_derecha = derecha;
+
+    if (llegada_izquierda->llegada < llegada_derecha->llegada) {
+        return -1;
+    }
+    if (llegada_izquierda->llegada > llegada_derecha->llegada) {
+        return 1;
+    }
+    if (llegada_izquierda->indice_original
+        < llegada_derecha->indice_original) {
+        return -1;
+    }
+    if (llegada_izquierda->indice_original
+        > llegada_derecha->indice_original) {
+        return 1;
+    }
+    return 0;
+}
+
+static planificador_estado_t encolar_rr(
+    size_t *cola,
+    size_t capacidad,
+    size_t *final,
+    size_t *cantidad_en_cola,
+    size_t indice_proceso)
+{
+    if (*cantidad_en_cola >= capacidad) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+    cola[*final] = indice_proceso;
+    *final = (*final + 1) % capacidad;
+    (*cantidad_en_cola)++;
+    return PLANIFICADOR_OK;
+}
+
+static planificador_estado_t agregar_llegadas_rr(
+    const llegada_rr_t *orden_llegadas,
+    size_t cantidad,
+    int64_t reloj_cpu,
+    size_t *siguiente_llegada,
+    size_t *cola,
+    size_t capacidad_cola,
+    size_t *final,
+    size_t *cantidad_en_cola)
+{
+    while (*siguiente_llegada < cantidad
+        && orden_llegadas[*siguiente_llegada].llegada <= reloj_cpu) {
+        size_t indice = orden_llegadas[*siguiente_llegada].indice_original;
+        planificador_estado_t estado = encolar_rr(
+            cola,
+            capacidad_cola,
+            final,
+            cantidad_en_cola,
+            indice);
+        if (estado != PLANIFICADOR_OK) {
+            return estado;
+        }
+        (*siguiente_llegada)++;
+    }
+    return PLANIFICADOR_OK;
+}
+
+static metricas_proceso_t calcular_metricas_rr(
+    const proceso_t *proceso,
+    int64_t primer_inicio,
+    int64_t finalizacion)
+{
+    int64_t retorno = finalizacion - proceso->llegada;
+    return (metricas_proceso_t) {
+        .proceso_id = proceso->id,
+        .espera = retorno - proceso->rafaga,
+        .retorno = retorno,
+        .respuesta = primer_inicio - proceso->llegada
+    };
+}
+
+/*
+ * Simula por turnos: el reloj salta directamente al fin del quantum,
+ * finalizacion o proxima llegada. Los buffers opcionales permiten contar
+ * segmentos antes de preparar los resultados publicos.
+ */
+static planificador_estado_t simular_rr(
+    const proceso_t *procesos,
+    size_t cantidad,
+    int64_t quantum,
+    proceso_rr_t *estado_procesos,
+    const llegada_rr_t *orden_llegadas,
+    size_t *cola,
+    segmento_t *segmentos_temporales,
+    metricas_proceso_t *metricas_temporales,
+    size_t *cantidad_segmentos)
+{
+    size_t frente = 0;
+    size_t final = 0;
+    size_t cantidad_en_cola = 0;
+    size_t siguiente_llegada = 0;
+    size_t terminados = 0;
+    size_t total_segmentos = 0;
+    size_t ultimo_indice_segmento = cantidad;
+    int ultimo_segmento_ocioso = 0;
+    int64_t fin_ultimo_segmento = 0;
+    int64_t reloj_cpu = 0;
+
+    for (size_t i = 0; i < cantidad; i++) {
+        estado_procesos[i] = (proceso_rr_t) {
+            .indice_original = i,
+            .restante = procesos[i].rafaga,
+            .primer_inicio = -1,
+            .finalizacion = -1
+        };
+    }
+
+    while (terminados < cantidad) {
+        planificador_estado_t estado = agregar_llegadas_rr(
+            orden_llegadas,
+            cantidad,
+            reloj_cpu,
+            &siguiente_llegada,
+            cola,
+            cantidad,
+            &final,
+            &cantidad_en_cola);
+        if (estado != PLANIFICADOR_OK) {
+            return estado;
+        }
+
+        if (cantidad_en_cola == 0) {
+            if (siguiente_llegada >= cantidad) {
+                return PLANIFICADOR_ARGUMENTO_INVALIDO;
+            }
+
+            int64_t proxima_llegada =
+                orden_llegadas[siguiente_llegada].llegada;
+            if (proxima_llegada <= reloj_cpu) {
+                return PLANIFICADOR_ARGUMENTO_INVALIDO;
+            }
+            if (total_segmentos == SIZE_MAX) {
+                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+            }
+            if (segmentos_temporales != NULL) {
+                segmentos_temporales[total_segmentos] = (segmento_t) {
+                    .proceso_id = 0,
+                    .inicio = reloj_cpu,
+                    .fin = proxima_llegada,
+                    .es_ocioso = 1
+                };
+            }
+            total_segmentos++;
+            ultimo_segmento_ocioso = 1;
+            ultimo_indice_segmento = cantidad;
+            fin_ultimo_segmento = proxima_llegada;
+            reloj_cpu = proxima_llegada;
+            continue;
+        }
+
+        size_t indice_proceso = cola[frente];
+        frente = (frente + 1) % cantidad;
+        cantidad_en_cola--;
+        proceso_rr_t *proceso_actual = &estado_procesos[indice_proceso];
+
+        if (proceso_actual->primer_inicio < 0) {
+            proceso_actual->primer_inicio = reloj_cpu;
+        }
+
+        int64_t duracion = proceso_actual->restante < quantum
+                               ? proceso_actual->restante
+                               : quantum;
+        int64_t fin_turno;
+        estado = sumar_tiempo_seguro(reloj_cpu, duracion, &fin_turno);
+        if (estado != PLANIFICADOR_OK) {
+            return estado;
+        }
+
+        int fusionar_segmento =
+            !ultimo_segmento_ocioso
+            && ultimo_indice_segmento == indice_proceso
+            && fin_ultimo_segmento == reloj_cpu;
+        if (fusionar_segmento) {
+            if (segmentos_temporales != NULL) {
+                segmentos_temporales[total_segmentos - 1].fin = fin_turno;
+            }
+        } else {
+            if (total_segmentos == SIZE_MAX) {
+                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+            }
+            if (segmentos_temporales != NULL) {
+                segmentos_temporales[total_segmentos] = (segmento_t) {
+                    .proceso_id = procesos[indice_proceso].id,
+                    .inicio = reloj_cpu,
+                    .fin = fin_turno,
+                    .es_ocioso = 0
+                };
+            }
+            total_segmentos++;
+        }
+        ultimo_segmento_ocioso = 0;
+        ultimo_indice_segmento = indice_proceso;
+        fin_ultimo_segmento = fin_turno;
+
+        proceso_actual->restante -= duracion;
+        reloj_cpu = fin_turno;
+        if (proceso_actual->restante == 0) {
+            proceso_actual->finalizacion = reloj_cpu;
+            terminados++;
+        }
+
+        /*
+         * Las llegadas ocurridas durante el turno, incluidas las que
+         * coinciden con su fin, ingresan antes de devolver el proceso actual.
+         */
+        estado = agregar_llegadas_rr(
+            orden_llegadas,
+            cantidad,
+            reloj_cpu,
+            &siguiente_llegada,
+            cola,
+            cantidad,
+            &final,
+            &cantidad_en_cola);
+        if (estado != PLANIFICADOR_OK) {
+            return estado;
+        }
+
+        if (proceso_actual->restante > 0) {
+            estado = encolar_rr(
+                cola,
+                cantidad,
+                &final,
+                &cantidad_en_cola,
+                indice_proceso);
+            if (estado != PLANIFICADOR_OK) {
+                return estado;
+            }
+        }
+    }
+
+    if (metricas_temporales != NULL) {
+        for (size_t i = 0; i < cantidad; i++) {
+            size_t indice = estado_procesos[i].indice_original;
+            metricas_temporales[indice] = calcular_metricas_rr(
+                &procesos[indice],
+                estado_procesos[i].primer_inicio,
+                estado_procesos[i].finalizacion);
+        }
+    }
+    *cantidad_segmentos = total_segmentos;
+    return PLANIFICADOR_OK;
+}
+
+planificador_estado_t planificador_rr(
+    const proceso_t *procesos,
+    size_t cantidad,
+    int64_t quantum,
+    segmento_t *segmentos,
+    size_t capacidad_segmentos,
+    size_t *cantidad_segmentos,
+    metricas_proceso_t *metricas,
+    size_t capacidad_metricas)
+{
+    proceso_rr_t *estado_procesos;
+    llegada_rr_t *orden_llegadas;
+    size_t *cola;
+    segmento_t *segmentos_temporales = NULL;
+    metricas_proceso_t *metricas_temporales = NULL;
+    size_t cantidad_segmentos_calculada = 0;
+    planificador_estado_t estado;
+
+    if (cantidad_segmentos == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    *cantidad_segmentos = 0;
+    if (procesos == NULL
+        || cantidad == 0
+        || quantum <= 0
+        || segmentos == NULL
+        || metricas == NULL) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    if (cantidad > SIZE_MAX / sizeof(*estado_procesos)
+        || cantidad > SIZE_MAX / sizeof(*orden_llegadas)
+        || cantidad > SIZE_MAX / sizeof(*cola)
+        || cantidad > SIZE_MAX / sizeof(*metricas_temporales)) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    estado_procesos = malloc(cantidad * sizeof(*estado_procesos));
+    orden_llegadas = malloc(cantidad * sizeof(*orden_llegadas));
+    cola = malloc(cantidad * sizeof(*cola));
+    if (estado_procesos == NULL || orden_llegadas == NULL || cola == NULL) {
+        free(estado_procesos);
+        free(orden_llegadas);
+        free(cola);
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    for (size_t i = 0; i < cantidad; i++) {
+        if (procesos[i].llegada < 0 || procesos[i].rafaga <= 0) {
+            free(estado_procesos);
+            free(orden_llegadas);
+            free(cola);
+            return PLANIFICADOR_ARGUMENTO_INVALIDO;
+        }
+        orden_llegadas[i] = (llegada_rr_t) {
+            .llegada = procesos[i].llegada,
+            .indice_original = i
+        };
+    }
+    qsort(
+        orden_llegadas,
+        cantidad,
+        sizeof(*orden_llegadas),
+        comparar_llegadas_rr);
+
+    estado = simular_rr(
+        procesos,
+        cantidad,
+        quantum,
+        estado_procesos,
+        orden_llegadas,
+        cola,
+        NULL,
+        NULL,
+        &cantidad_segmentos_calculada);
+    if (estado != PLANIFICADOR_OK) {
+        free(estado_procesos);
+        free(orden_llegadas);
+        free(cola);
+        return estado;
+    }
+
+    if (capacidad_segmentos < cantidad_segmentos_calculada
+        || capacidad_metricas < cantidad) {
+        *cantidad_segmentos = cantidad_segmentos_calculada;
+        free(estado_procesos);
+        free(orden_llegadas);
+        free(cola);
+        return PLANIFICADOR_CAPACIDAD_INSUFICIENTE;
+    }
+    if (cantidad_segmentos_calculada > SIZE_MAX / sizeof(*segmentos_temporales)) {
+        free(estado_procesos);
+        free(orden_llegadas);
+        free(cola);
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    segmentos_temporales =
+        malloc(cantidad_segmentos_calculada * sizeof(*segmentos_temporales));
+    metricas_temporales = malloc(cantidad * sizeof(*metricas_temporales));
+    if (segmentos_temporales == NULL || metricas_temporales == NULL) {
+        free(segmentos_temporales);
+        free(metricas_temporales);
+        free(estado_procesos);
+        free(orden_llegadas);
+        free(cola);
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+
+    estado = simular_rr(
+        procesos,
+        cantidad,
+        quantum,
+        estado_procesos,
+        orden_llegadas,
+        cola,
+        segmentos_temporales,
+        metricas_temporales,
+        &cantidad_segmentos_calculada);
+    if (estado == PLANIFICADOR_OK) {
+        for (size_t i = 0; i < cantidad_segmentos_calculada; i++) {
+            segmentos[i] = segmentos_temporales[i];
+        }
+        for (size_t i = 0; i < cantidad; i++) {
+            metricas[i] = metricas_temporales[i];
+        }
+        *cantidad_segmentos = cantidad_segmentos_calculada;
+    }
+
+    free(segmentos_temporales);
+    free(metricas_temporales);
+    free(estado_procesos);
+    free(orden_llegadas);
+    free(cola);
+    return estado;
+}
+
+/* ============================================================
  * INTERFACES PUBLICAS Y ADAPTADORES
  * ============================================================
  * La interfaz v1 mantiene su firma actual y delega el calculo al nucleo.
@@ -509,10 +1240,3 @@ int32_t planificador_fcfs_v1(
     return (int32_t)estado;
 }
 
-/* ============================================================
- * FUTUROS ALGORITMOS
- * ============================================================
- * SRTF expropiativo.
- * Round Robin con cuanto configurable.
- * Estos algoritmos no se implementan en esta etapa.
- */
