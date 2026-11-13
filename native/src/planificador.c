@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ============================================================
  * UTILIDADES COMUNES DEL NUCLEO
@@ -24,16 +25,17 @@ static planificador_estado_t sumar_tiempo_seguro(
     return PLANIFICADOR_OK;
 }
 
-static metricas_proceso_t calcular_metricas_proceso(
+static metricas_proceso_t calcular_metricas(
     const proceso_t *proceso,
-    int64_t inicio,
-    int64_t fin)
+    int64_t primer_inicio,
+    int64_t finalizacion)
 {
+    int64_t retorno = finalizacion - proceso->llegada;
     return (metricas_proceso_t) {
         .proceso_id = proceso->id,
-        .espera = inicio - proceso->llegada,
-        .retorno = fin - proceso->llegada,
-        .respuesta = inicio - proceso->llegada
+        .espera = retorno - proceso->rafaga,
+        .retorno = retorno,
+        .respuesta = primer_inicio - proceso->llegada
     };
 }
 
@@ -236,7 +238,7 @@ planificador_estado_t planificador_fcfs(
         };
 
         /* Las métricas se guardan en el orden original de entrada. */
-        metricas[indice_proceso] = calcular_metricas_proceso(
+        metricas[indice_proceso] = calcular_metricas(
             proceso,
             tiempo_inicio,
             tiempo_fin);
@@ -327,11 +329,7 @@ planificador_estado_t planificador_sjf(
         };
     }
 
-    /*
-     * Preparar todo el orden de ejecucion antes de escribir en los buffers
-     * del llamador. Asi se pueden informar errores sin dejar resultados
-     * parciales.
-     */
+    /* Calcula primero el plan para no dejar resultados parciales. */
     size_t turno = 0;
     while (turno < cantidad) {
         size_t indice_elegido = cantidad;
@@ -419,7 +417,7 @@ planificador_estado_t planificador_sjf(
             .es_ocioso = 0
         };
         metricas[proceso_planificado->indice_original] =
-            calcular_metricas_proceso(
+            calcular_metricas(
                 proceso,
                 proceso_planificado->inicio,
                 proceso_planificado->fin);
@@ -493,25 +491,7 @@ static size_t seleccionar_proceso_srtf(
     return indice_elegido;
 }
 
-static metricas_proceso_t calcular_metricas_srtf(
-    const proceso_t *proceso,
-    int64_t primer_inicio,
-    int64_t finalizacion)
-{
-    int64_t retorno = finalizacion - proceso->llegada;
-    return (metricas_proceso_t) {
-        .proceso_id = proceso->id,
-        .espera = retorno - proceso->rafaga,
-        .retorno = retorno,
-        .respuesta = primer_inicio - proceso->llegada
-    };
-}
-
-/*
- * Simula SRTF hasta completar todos los procesos. Si se entregan buffers
- * temporales, escribe alli los segmentos y metricas; nunca recibe los
- * buffers publicos directamente.
- */
+/* Simulación por eventos; nunca escribe directamente en buffers públicos. */
 static planificador_estado_t simular_srtf(
     const proceso_t *procesos,
     proceso_srtf_t *planificacion,
@@ -656,7 +636,7 @@ static planificador_estado_t simular_srtf(
     if (metricas_temporales != NULL) {
         for (size_t i = 0; i < cantidad; i++) {
             metricas_temporales[planificacion[i].indice_original] =
-                calcular_metricas_srtf(
+                calcular_metricas(
                     &procesos[planificacion[i].indice_original],
                     planificacion[i].primer_inicio,
                     planificacion[i].finalizacion);
@@ -839,24 +819,9 @@ static planificador_estado_t agregar_llegadas_rr(
     return PLANIFICADOR_OK;
 }
 
-static metricas_proceso_t calcular_metricas_rr(
-    const proceso_t *proceso,
-    int64_t primer_inicio,
-    int64_t finalizacion)
-{
-    int64_t retorno = finalizacion - proceso->llegada;
-    return (metricas_proceso_t) {
-        .proceso_id = proceso->id,
-        .espera = retorno - proceso->rafaga,
-        .retorno = retorno,
-        .respuesta = primer_inicio - proceso->llegada
-    };
-}
-
 /*
- * Simula por turnos: el reloj salta directamente al fin del quantum,
- * finalizacion o proxima llegada. Los buffers opcionales permiten contar
- * segmentos antes de preparar los resultados publicos.
+ * Simula por turnos y admite una primera pasada sin buffers para contar
+ * segmentos antes de preparar los resultados públicos.
  */
 static planificador_estado_t simular_rr(
     const proceso_t *procesos,
@@ -944,6 +909,13 @@ static planificador_estado_t simular_rr(
         int64_t duracion = proceso_actual->restante < quantum
                                ? proceso_actual->restante
                                : quantum;
+        /* Sin competencia antes de terminar, no hace falta simular quanta. */
+        if (cantidad_en_cola == 0
+            && (siguiente_llegada == cantidad
+                || proceso_actual->restante
+                   <= orden_llegadas[siguiente_llegada].llegada - reloj_cpu)) {
+            duracion = proceso_actual->restante;
+        }
         int64_t fin_turno;
         estado = sumar_tiempo_seguro(reloj_cpu, duracion, &fin_turno);
         if (estado != PLANIFICADOR_OK) {
@@ -983,10 +955,7 @@ static planificador_estado_t simular_rr(
             terminados++;
         }
 
-        /*
-         * Las llegadas ocurridas durante el turno, incluidas las que
-         * coinciden con su fin, ingresan antes de devolver el proceso actual.
-         */
+        /* Las llegadas al vencer el quantum entran antes del proceso actual. */
         estado = agregar_llegadas_rr(
             orden_llegadas,
             cantidad,
@@ -1016,7 +985,7 @@ static planificador_estado_t simular_rr(
     if (metricas_temporales != NULL) {
         for (size_t i = 0; i < cantidad; i++) {
             size_t indice = estado_procesos[i].indice_original;
-            metricas_temporales[indice] = calcular_metricas_rr(
+            metricas_temporales[indice] = calcular_metricas(
                 &procesos[indice],
                 estado_procesos[i].primer_inicio,
                 estado_procesos[i].finalizacion);
@@ -1165,11 +1134,49 @@ planificador_estado_t planificador_rr(
 /* ============================================================
  * INTERFACES PUBLICAS Y ADAPTADORES
  * ============================================================
- * La interfaz v1 mantiene su firma actual y delega el calculo al nucleo.
+ * La interfaz comun v1 delega el calculo al nucleo.
  */
-int32_t planificador_fcfs_v1(
+static const algoritmo_t catalogo[] = {
+    {"fcfs", "FCFS/FIFO", 0},
+    {"sjf", "SJF", 0},
+    {"srtf", "SRTF", 0},
+    {"rr", "Round Robin", 1}
+};
+
+const algoritmo_t *listar_algoritmos(int32_t *cantidad)
+{
+    if (cantidad == NULL) {
+        return NULL;
+    }
+    *cantidad = (int32_t)(sizeof(catalogo) / sizeof(catalogo[0]));
+    return catalogo;
+}
+
+/* Seleccion interna: las reglas permanecen en cada algoritmo. */
+static planificador_estado_t ejecutar_seleccionado(
+    int algoritmo, int64_t quantum, const proceso_t *procesos,
+    size_t cantidad, segmento_t *segmentos, size_t capacidad_segmentos,
+    size_t *cantidad_segmentos, metricas_proceso_t *metricas,
+    size_t capacidad_metricas)
+{
+    if (algoritmo == 3) {
+        return planificador_rr(procesos, cantidad, quantum, segmentos,
+            capacidad_segmentos, cantidad_segmentos, metricas, capacidad_metricas);
+    }
+    typedef planificador_estado_t (*planificador_t)(const proceso_t *, size_t,
+        segmento_t *, size_t, size_t *, metricas_proceso_t *, size_t);
+    const planificador_t funciones[] = {
+        planificador_fcfs, planificador_sjf, planificador_srtf
+    };
+    return funciones[algoritmo](procesos, cantidad, segmentos,
+        capacidad_segmentos, cantidad_segmentos, metricas, capacidad_metricas);
+}
+
+int32_t planificador_ejecutar_v1(
+    const char *algoritmo_id,
     const proceso_t *procesos,
     int32_t cantidad_procesos,
+    int64_t quantum,
     segmento_t *segmentos,
     int32_t capacidad_segmentos,
     int32_t *cantidad_segmentos_requerida,
@@ -1181,6 +1188,7 @@ int32_t planificador_fcfs_v1(
     metricas_proceso_t metrica_sonda;
     size_t cantidad_segmentos_size = 0;
     planificador_estado_t estado;
+    int algoritmo;
 
     if (cantidad_segmentos_requerida != NULL) {
         *cantidad_segmentos_requerida = 0;
@@ -1191,11 +1199,25 @@ int32_t planificador_fcfs_v1(
     if (cantidad_segmentos_requerida == NULL
         || cantidad_metricas_requerida == NULL
         || procesos == NULL
-        || segmentos == NULL
-        || metricas == NULL
+        || algoritmo_id == NULL
+        || (segmentos == NULL && capacidad_segmentos != 0)
+        || (metricas == NULL && capacidad_metricas != 0)
         || cantidad_procesos <= 0
         || capacidad_segmentos < 0
         || capacidad_metricas < 0) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    int32_t cantidad_algoritmos = 0;
+    const algoritmo_t *algoritmos = listar_algoritmos(&cantidad_algoritmos);
+    for (algoritmo = 0; algoritmo < cantidad_algoritmos; algoritmo++) {
+        if (strcmp(algoritmo_id, algoritmos[algoritmo].id) == 0) {
+            break;
+        }
+    }
+    if (algoritmo == cantidad_algoritmos) {
+        return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    }
+    if (algoritmo == 3 && quantum <= 0) {
         return PLANIFICADOR_ARGUMENTO_INVALIDO;
     }
 #if SIZE_MAX < INT32_MAX
@@ -1206,8 +1228,8 @@ int32_t planificador_fcfs_v1(
     }
 #endif
 
-    estado = planificador_fcfs(
-        procesos,
+    estado = ejecutar_seleccionado(
+        algoritmo, quantum, procesos,
         (size_t)cantidad_procesos,
         &segmento_sonda,
         0,
@@ -1229,8 +1251,8 @@ int32_t planificador_fcfs_v1(
         return PLANIFICADOR_CAPACIDAD_INSUFICIENTE;
     }
 
-    estado = planificador_fcfs(
-        procesos,
+    estado = ejecutar_seleccionado(
+        algoritmo, quantum, procesos,
         (size_t)cantidad_procesos,
         segmentos,
         (size_t)capacidad_segmentos,
@@ -1239,4 +1261,3 @@ int32_t planificador_fcfs_v1(
         (size_t)capacidad_metricas);
     return (int32_t)estado;
 }
-

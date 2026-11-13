@@ -1,0 +1,142 @@
+{
+  "entorno" : "HTTP + JWT RSA/JWKS local + H2 + C real; sin Keycloak/PostgreSQL",
+  "request" : {
+    "algorithmId" : "fcfs",
+    "processes" : [ {
+      "pid" : 1,
+      "arrivalTime" : 1,
+      "burstTime" : 5,
+      "priority" : 0
+    }, {
+      "pid" : 2,
+      "arrivalTime" : 2,
+      "burstTime" : 1,
+      "priority" : 0
+    } ],
+    "quantum" : 2
+  },
+  "status" : 201,
+  "response" : {
+    "algorithmId" : "fcfs",
+    "segments" : [ {
+      "kind" : "idle",
+      "start" : 0,
+      "end" : 1
+    }, {
+      "kind" : "execution",
+      "pid" : 1,
+      "start" : 1,
+      "end" : 6
+    }, {
+      "kind" : "execution",
+      "pid" : 2,
+      "start" : 6,
+      "end" : 7
+    } ],
+    "processMetrics" : [ {
+      "pid" : 1,
+      "arrivalTime" : 1,
+      "burstTime" : 5,
+      "completionTime" : 6,
+      "turnaroundTime" : 5,
+      "waitingTime" : 0,
+      "responseTime" : 0
+    }, {
+      "pid" : 2,
+      "arrivalTime" : 2,
+      "burstTime" : 1,
+      "completionTime" : 7,
+      "turnaroundTime" : 5,
+      "waitingTime" : 4,
+      "responseTime" : 4
+    } ],
+    "averages" : {
+      "waitingTime" : 2.0,
+      "turnaroundTime" : 5.0,
+      "responseTime" : 2.0
+    },
+    "planificationId" : "ab518d0d-555d-4f24-b7ac-a908552623a9",
+    "createdAt" : "2026-11-13T05:45:46.059750586Z",
+    "processes" : [ {
+      "pid" : 1,
+      "arrivalTime" : 1,
+      "burstTime" : 5,
+      "priority" : 0
+    }, {
+      "pid" : 2,
+      "arrivalTime" : 2,
+      "burstTime" : 1,
+      "priority" : 0
+    } ]
+  },
+  "catalog" : {
+    "algorithms" : [ {
+      "id" : "fcfs"
+    }, {
+      "id" : "sjf"
+    }, {
+      "id" : "srtf"
+    }, {
+      "id" : "rr"
+    } ]
+  },
+  "history" : {
+    "items" : [ {
+      "algorithmId" : "fcfs",
+      "segments" : [ {
+        "kind" : "idle",
+        "start" : 0,
+        "end" : 1
+      }, {
+        "kind" : "execution",
+        "pid" : 1,
+        "start" : 1,
+        "end" : 6
+      }, {
+        "kind" : "execution",
+        "pid" : 2,
+        "start" : 6,
+        "end" : 7
+      } ],
+      "processMetrics" : [ {
+        "pid" : 1,
+        "arrivalTime" : 1,
+        "burstTime" : 5,
+        "completionTime" : 6,
+        "turnaroundTime" : 5,
+        "waitingTime" : 0,
+        "responseTime" : 0
+      }, {
+        "pid" : 2,
+        "arrivalTime" : 2,
+        "burstTime" : 1,
+        "completionTime" : 7,
+        "turnaroundTime" : 5,
+        "waitingTime" : 4,
+        "responseTime" : 4
+      } ],
+      "averages" : {
+        "waitingTime" : 2.0,
+        "turnaroundTime" : 5.0,
+        "responseTime" : 2.0
+      },
+      "planificationId" : "ab518d0d-555d-4f24-b7ac-a908552623a9",
+      "createdAt" : "2026-11-13T05:45:46.059750586Z",
+      "processes" : [ {
+        "pid" : 1,
+        "arrivalTime" : 1,
+        "burstTime" : 5,
+        "priority" : 0
+      }, {
+        "pid" : 2,
+        "arrivalTime" : 2,
+        "burstTime" : 1,
+        "priority" : 0
+      } ]
+    } ]
+  },
+  "unauthorized" : {
+    "code" : "UNAUTHORIZED",
+    "message" : "Se requiere un JWT valido."
+  }
+}

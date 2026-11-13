@@ -47,8 +47,7 @@ typedef enum {
  * y luego el orden original. Las metricas se escriben en orden de entrada.
  * Los segmentos ociosos usan es_ocioso = 1.
  *
- * Esta interfaz permite probar el nucleo nativo; la ABI para JNA sigue
- * pendiente de acuerdo.
+ * API interna con size_t; usar planificador_ejecutar_v1 para JNA.
  */
 planificador_estado_t planificador_fcfs(
     const proceso_t *procesos,
@@ -116,25 +115,30 @@ planificador_estado_t planificador_rr(
     metricas_proceso_t *metricas,
     size_t capacidad_metricas);
 
-/*
- * Interfaz versionada con cantidades y capacidades int32_t.
- *
- * Ambos contadores de salida son obligatorios. Si alguno es NULL, devuelve
- * PLANIFICADOR_ARGUMENTO_INVALIDO, pone a cero cualquier contador no nulo
- * y no modifica los buffers de resultados.
- * Los buffers de procesos, segmentos y metricas deben ser no nulos incluso
- * cuando su capacidad sea cero.
- * Si el sondeo falla antes de calcular los tamanos, ambos contadores quedan
- * en cero. Ante capacidad insuficiente, informa ambos tamanos requeridos y
- * no escribe resultados parciales. Si la segunda llamada falla, conserva en
- * los contadores los requerimientos calculados por el sondeo.
- * Si la cantidad requerida de segmentos excede INT32_MAX, devuelve
- * PLANIFICADOR_CANTIDAD_NO_REPRESENTABLE, deja ese contador en cero y
- * conserva la cantidad requerida de metricas.
+/* Cadenas ASCII terminadas en cero. Disposicion estable para JNA. */
+typedef struct {
+    char id[16];
+    char nombre[64];
+    int32_t requiere_quantum;
+} algoritmo_t;
+
+/* Memoria estatica de solo lectura, valida durante la vida de la biblioteca.
+ * No liberar. Con contador NULL devuelve NULL.
  */
-int32_t planificador_fcfs_v1(
+const algoritmo_t *listar_algoritmos(int32_t *cantidad);
+
+/* Identificadores del catalogo; quantum solo se usa en rr.
+ * Buffers NULL permitidos con capacidad cero. Sondeo devuelve estado 3
+ * y ambos tamanos; sin escrituras parciales por falta de capacidad.
+ * Contadores obligatorios y distintos; buffers sin solapamiento.
+ * Ante error previo al sondeo quedan en cero; estado 5 conserva metricas
+ * y deja segmentos en cero. Un error posterior conserva los tamanos.
+ */
+int32_t planificador_ejecutar_v1(
+    const char *algoritmo_id,
     const proceso_t *procesos,
     int32_t cantidad_procesos,
+    int64_t quantum,
     segmento_t *segmentos,
     int32_t capacidad_segmentos,
     int32_t *cantidad_segmentos_requerida,

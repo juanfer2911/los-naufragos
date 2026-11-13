@@ -1,4 +1,15 @@
 Bitácora de decisiones
+
+## 2026-11-13 — Integración Java/JNA y catálogo nativo
+
+Etapa autorizada: conectar el microservicio existente con C sin endpoints ni cambios de arquitectura. Se agregó JNA 5.18.1 al POM y dos clases en `nativo/`: mapeo de estructuras/funciones y adaptador de sondeo, ejecución y recuperación de resultados. La biblioteca se carga mediante ruta absoluta configurable y únicamente en JVM Linux de 64 bits. No se copió a otro directorio ni se modificaron los cuatro algoritmos.
+
+Se implementó `listar_algoritmos()` mediante una tabla estática C de identificadores, nombres y necesidad de quantum. El despachador consulta esa misma tabla; Java lee y copia los registros, sin catálogo propio. `algoritmo_t` contiene id[16], nombre[64] y requiere_quantum int32_t; su memoria pertenece a C y no debe liberarse. El formato REST no se modificó.
+
+Verificación: 34 casos nativos conservados y exitosos, con comprobaciones adicionales del catálogo/ABI. Maven con Java Linux 21.0.13: 10 pruebas exitosas (nueve de integración JNA y una de contexto), cero fallos/errores/omitidas. Sin advertencias de compilación; la prueba de contexto emitió las advertencias conocidas de Mockito/Byte Buddy y agentes dinámicos. La primera ejecución corrigió un dato esperado de pruebas: C usa PID 0 para ociosidad y la distingue mediante es_ocioso; no se cambió esa lógica.
+
+WSL carecía de Java/Maven; se descargaron herramientas Linux temporales en target/herramientas, ignoradas por Git. El README del microservicio documenta comandos e IntelliJ/WSL. No se implementaron REST, bases de datos, identidad, historial ni Angular. No se hicieron commits/pushes.
+
 Esta bitácora conserva las decisiones previas, marca como cerradas las decisiones A–G confirmadas por el equipo y separa las cuestiones que todavía requieren validación. Las decisiones sobre contratos y nombres de operaciones de docs/openapi.yaml son propuestas explícitas, no acuerdos implícitos.
 Decisiones confirmadas
 ID	Decisión	Alternativa considerada o límite	Justificación / requisito relacionado	Estado
@@ -52,3 +63,26 @@ Estado del repositorio y fuentes
 - La estructura acordada es frontend/, backend/, native/, infra/, tests/ y docs/.
 - Las decisiones y propuestas de esta bitácora no modifican los documentos originales.
 - Fuentes: docs/Enunciado general_PI.pdf, docs/- Los Naufragos - Planificador de procesos.pdf, docs/Los Naufragos - Nucleo de planificacion.pdf y docs/Guia_maestra_Copilot_Planificador_Los_Naufragos.docx.
+
+## 2026-11-13 — Interfaz nativa común v1 y limpieza autorizada
+
+El equipo autorizó implementar `planificador_ejecutar_v1()` con identificadores textuales estables `fcfs`, `sjf`, `srtf`, `rr`, manteniendo las cuatro funciones y sus reglas. El adaptador usa tipos numéricos de ancho fijo, sondeo con buffers NULL de capacidad cero y conserva estados 0–5. El sondeo devuelve estado 3 y cantidades exactas; no escribe resultados si falta capacidad. Solo RR exige quantum positivo.
+
+Se probó el reemplazo antes de retirar `planificador_fcfs_v1()`. La búsqueda no encontró consumidores ejecutables fuera de las pruebas nativas. Se retiraron su declaración e implementación y se adaptaron sus cuatro pruebas. El símbolo anterior deja de formar parte de la biblioteca; no se garantiza compatibilidad con binarios externos que lo usaran. No se modificaron los algoritmos.
+
+`fifo_didactico.c`, sin referencias de compilación ni requisito localizado que lo exija en el núcleo, se movió íntegro a `native/referencias/`; no se confirmó su autoría y se preservó como material académico. No se incorporó a la biblioteca.
+
+Verificación en Ubuntu/WSL 2: clean, test y library completados, 34 casos exitosos, sin advertencias de compilación. nm confirmó únicamente los cinco símbolos públicos esperados: las cuatro funciones y la interfaz común. Se verificaron tamaños y desplazamientos ABI Linux x86-64. El estado 5 se conserva, pero no se ejecutó una carga de miles de millones de segmentos para cubrir su límite.
+
+README y resumen actualizados. OpenAPI revisado sin cambios: conserva contrato proyectado, campos y rutas existentes, identificadores textuales y catálogo abierto. Java/JNA, listar_algoritmos(), REST y cambios a microservicios quedaron fuera de esta etapa. No se agregaron dependencias ni se hicieron commits/pushes.
+
+
+## 2026-11-13 - Cierre de planificador-service autorizado por el equipo
+
+Se completaron REST, Resource Server JWT de Keycloak, JDBC/PostgreSQL e historial privado por sub, conservando OpenAPI. GET /algoritmos, POST /planificaciones (201), GET /historial y GET /historial/{planificacionId} estan implementados. El catalogo procede de C, sin lista manual en Java. No se incorporaron usuarios propios ni nuevos microservicios.
+
+El quantum de Round Robin se conserva dentro del snapshot TEXT y se recupera internamente sin aparecer en las respuestas publicas. No se agregaron tablas/columnas ni se migraron los registros antiguos, cuyo quantum puede ser nulo.
+
+Verificacion de cierre: 34 casos C y 19 pruebas Java exitosas; sin fallos, errores u omitidas. El primer empaquetado fallo al sustituir el artefacto generado; despues de detener solo la JVM anterior, package -DskipTests termino correctamente y se inicio el JAR actualizado en WSL/8081. PostgreSQL 16.4 y Keycloak 25.0.6 no se reiniciaron. Se verifico JWT real y una sola corrida RR con quantum 3, confirmado en PostgreSQL y omitido en HTTP. Los cuatro historicos anteriores conservaron sus huellas; no se modificaron ni eliminaron datos.
+
+Se revisaron rama feature/juanfer y remoto origin (GitHub), diffs, referencias academicas y exclusiones de secretos/temporales. El usuario autorizo commit y push normal de los avances verificados; el resultado y hash se informan al terminar. No se modificaron Angular, OpenAPI ni el Compose base. Quedan proceso-service, integracion Angular, comparaciones, motor Java de referencia, benchmarks y despliegue final. Comandos y evidencias se mantienen en las guias del microservicio.

@@ -1,0 +1,91 @@
+{
+  "backend": "http://localhost:8081",
+  "postgresql_real": true,
+  "keycloak_real": true,
+  "historial_previo_sin_cambios": true,
+  "registros_anteriores": 4,
+  "registros_nuevos": 1,
+  "quantum_almacenado": 3,
+  "respuesta_publica_sin_quantum": true,
+  "catalogo": {
+    "algorithms": [
+      {
+        "id": "fcfs"
+      },
+      {
+        "id": "sjf"
+      },
+      {
+        "id": "srtf"
+      },
+      {
+        "id": "rr"
+      }
+    ]
+  },
+  "respuesta": {
+    "algorithmId": "rr",
+    "segments": [
+      {
+        "kind": "execution",
+        "pid": 1,
+        "start": 0,
+        "end": 3
+      },
+      {
+        "kind": "execution",
+        "pid": 2,
+        "start": 3,
+        "end": 4
+      },
+      {
+        "kind": "execution",
+        "pid": 1,
+        "start": 4,
+        "end": 6
+      }
+    ],
+    "processMetrics": [
+      {
+        "pid": 1,
+        "arrivalTime": 0,
+        "burstTime": 5,
+        "completionTime": 6,
+        "turnaroundTime": 6,
+        "waitingTime": 1,
+        "responseTime": 0
+      },
+      {
+        "pid": 2,
+        "arrivalTime": 0,
+        "burstTime": 1,
+        "completionTime": 4,
+        "turnaroundTime": 4,
+        "waitingTime": 3,
+        "responseTime": 3
+      }
+    ],
+    "averages": {
+      "waitingTime": 2.0,
+      "turnaroundTime": 5.0,
+      "responseTime": 1.5
+    },
+    "planificationId": "5bef80aa-b522-4679-8f2a-abedd21a0ed8",
+    "createdAt": "2026-11-13T17:29:02.402776164Z",
+    "processes": [
+      {
+        "pid": 1,
+        "arrivalTime": 0,
+        "burstTime": 5,
+        "priority": 0
+      },
+      {
+        "pid": 2,
+        "arrivalTime": 0,
+        "burstTime": 1,
+        "priority": 0
+      }
+    ],
+    "sourceSetId": "verificacion-cierre-quantum"
+  }
+}
