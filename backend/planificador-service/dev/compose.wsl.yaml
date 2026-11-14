@@ -1,0 +1,11 @@
+# Opcional: acceso desde WSL en modo NAT, sin publicar en la interfaz Wi-Fi.
+# WSL_HOST_IP debe ser la IP de vEthernet (WSL) de Windows.
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:5432:5432"
+      - "${WSL_HOST_IP:?Configure la IP de vEthernet WSL}:5432:5432"
+  keycloak:
+    ports: !override
+      - "127.0.0.1:8080:8080"
+      - "${WSL_HOST_IP:?Configure la IP de vEthernet WSL}:8080:8080"
