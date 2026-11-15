@@ -1,6 +1,7 @@
 {
   "realm": "planificador-realm",
   "enabled": true,
+  "registrationAllowed": true,
   "clients": [
     {
       "clientId": "angular-desarrollo",
@@ -12,8 +13,11 @@
       "directAccessGrantsEnabled": false,
       "redirectUris": ["http://localhost:4200/*"],
       "webOrigins": ["http://localhost:4200"],
-      "attributes": {"pkce.code.challenge.method": "S256"},
-      "defaultClientScopes": ["profile", "email", "roles"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "defaultClientScopes": ["basic", "profile", "email", "roles"],
       "protocolMappers": [
         {
           "name": "audiencia-planificador",

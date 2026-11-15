@@ -1,7 +1,11 @@
 // app.ts
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { AuthService } from './auth.service';
+import { Planificacion, PlanificadorApi } from './planificador-api.service';
 
 export interface Proceso {
   pid: number;
@@ -11,7 +15,8 @@ export interface Proceso {
 }
 
 export interface RebanadaGantt {
-  pid: number;
+  kind: 'execution' | 'idle';
+  pid?: number;
   inicio: number;
   fin: number;
   color: string;
@@ -42,16 +47,20 @@ export interface ConjuntoPrueba {
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
-export class App {
-  vistaActual = signal<'inicio' | 'configuracion' | 'resultados' | 'conjuntos'>('configuracion');
-  sesionIniciada = signal(false);
-  modoRegistro = signal(false);
-  usuario = 'Juan Pérez';
+export class App implements OnInit {
+  readonly auth = inject(AuthService);
+  private readonly api = inject(PlanificadorApi);
+  vistaActual = signal<'inicio' | 'configuracion' | 'resultados' | 'conjuntos' | 'historial'>('inicio');
+  sesionIniciada = this.auth.sesionIniciada;
+  usuario = this.auth.usuario;
   correo = '';
-  contrasena = '';
+  cargando = signal(false);
+  error = signal('');
+  historial = signal<Planificacion[]>([]);
+  resultados = signal<Record<string, Planificacion>>({});
 
   // SEÑAL PARA EL ALGORITMO SELECCIONADO
-  algoritmoSeleccionado = signal<'SJF' | 'FIFO' | 'SRTF' | 'RR'>('SJF');
+  algoritmoSeleccionado = signal('');
 
   procesos = signal<Proceso[]>([
     { pid: 1, llegada: 0, rafaga: 8, prioridad: 3 },
@@ -60,9 +69,9 @@ export class App {
     { pid: 4, llegada: 5, rafaga: 5, prioridad: 4 }
   ]);
 
-  quantum = signal(3);
-  algoritmosDisponibles = ['FIFO', 'SJF', 'SRTF', 'RR'];
-  algoritmosActivos = signal<string[]>(['FIFO', 'SJF', 'SRTF', 'RR']);
+  quantum = signal<number | null>(3);
+  algoritmosDisponibles = signal<{ id: string }[]>([]);
+  algoritmosActivos = signal<string[]>([]);
   borradorProceso: Proceso = this.procesoVacio();
   procesoEditando = signal<number | null>(null);
   mostrarFormularioProceso = signal(false);
@@ -77,43 +86,123 @@ export class App {
   nombreConjunto = '';
   descripcionConjunto = '';
 
-  private simulacion = computed(() => this.simular(this.algoritmoSeleccionado()));
-  rebanadasGantt = computed(() => this.simulacion().rebanadas);
-  metricas = computed(() => this.simulacion().metricas);
-  promedioEspera = computed(() => this.promedio('espera'));
-  promedioRetorno = computed(() => this.promedio('retorno'));
-  promedioRespuesta = computed(() => this.promedio('respuesta'));
-  promedioRafaga = computed(() => this.promedio('rafaga'));
+  resultadoActual = computed(() => this.resultados()[this.algoritmoSeleccionado()]);
+  rebanadasGantt = computed<RebanadaGantt[]>(() => (this.resultadoActual()?.segments ?? []).map(s => ({
+    kind: s.kind, pid: s.kind === 'execution' ? s.pid : undefined,
+    inicio: s.start, fin: s.end, color: s.kind === 'idle' ? '#94a3b8' : this.colorProceso(s.pid),
+  })));
+  metricas = computed<MetricaProceso[]>(() => (this.resultadoActual()?.processMetrics ?? []).map(m => ({
+    pid: m.pid, llegada: m.arrivalTime, rafaga: m.burstTime, fin: m.completionTime,
+    retorno: m.turnaroundTime, espera: m.waitingTime, respuesta: m.responseTime,
+  })));
+  promedioEspera = computed(() => this.resultadoActual()?.averages.waitingTime ?? 0);
+  promedioRetorno = computed(() => this.resultadoActual()?.averages.turnaroundTime ?? 0);
+  promedioRespuesta = computed(() => this.resultadoActual()?.averages.responseTime ?? 0);
   algoritmoGanador = computed(() => {
-    const resultados = this.algoritmosActivos().map(algoritmo => {
-      const metricas = this.simular(algoritmo).metricas;
-      const espera = metricas.length ? metricas.reduce((total, metrica) => total + metrica.espera, 0) / metricas.length : Number.POSITIVE_INFINITY;
-      return { algoritmo, espera };
-    });
+    const resultados = Object.values(this.resultados()).map(r => ({ algoritmo: r.algorithmId, espera: r.averages.waitingTime }));
     return resultados.sort((a, b) => a.espera - b.espera)[0] ?? null;
   });
 
-  cambiarVista(nuevaVista: 'inicio' | 'configuracion' | 'resultados' | 'conjuntos') {
-    this.vistaActual.set(nuevaVista);
+  ngOnInit() { if (this.sesionIniciada()) void this.cargarDatos(); }
+
+  async cargarDatos() {
+    this.cargando.set(true); this.error.set('');
+    try {
+      const [catalogo, historial] = await Promise.all([
+        firstValueFrom(this.api.algoritmos()), firstValueFrom(this.api.historial()),
+      ]);
+      this.algoritmosDisponibles.set(catalogo.algorithms);
+      this.algoritmosActivos.set(catalogo.algorithms.map(a => a.id));
+      this.algoritmoSeleccionado.set(catalogo.algorithms[0]?.id ?? '');
+      this.historial.set(historial.items);
+    } catch (error) { this.mostrarError(error); }
+    finally { this.cargando.set(false); }
   }
 
-  cambiarAlgoritmo(alg: 'SJF' | 'FIFO' | 'SRTF' | 'RR') {
+  cambiarVista(nuevaVista: 'inicio' | 'configuracion' | 'resultados' | 'conjuntos' | 'historial') {
+    this.vistaActual.set(nuevaVista);
+    if (nuevaVista === 'historial') void this.cargarHistorial();
+  }
+
+  cambiarAlgoritmo(alg: string) {
     this.algoritmoSeleccionado.set(alg);
+  }
+
+  nombreAlgoritmo(id: string) { return id === 'rr' ? 'Round Robin' : id === 'fcfs' ? 'FIFO' : id.toUpperCase(); }
+
+  async ejecutarSimulacion() {
+    if (this.cargando()) return;
+    if (!this.algoritmosActivos().length || !this.procesos().length) {
+      this.error.set('Agrega procesos y selecciona al menos un algoritmo.'); return;
+    }
+    if (this.algoritmosActivos().includes('rr') && (!Number.isSafeInteger(this.quantum()) || (this.quantum() ?? 0) < 1)) {
+      this.error.set('Indica un quantum entero mayor o igual que 1.'); return;
+    }
+    if (this.procesos().some(p => ![p.pid, p.llegada, p.rafaga, p.prioridad].every(Number.isSafeInteger)
+        || p.pid < 0 || p.llegada < 0 || p.rafaga < 1)) {
+      this.error.set('Los procesos requieren enteros validos: llegada no negativa y rafaga positiva.'); return;
+    }
+    this.cargando.set(true); this.error.set(''); this.resultados.set({});
+    try {
+      // Cada POST guarda una corrida; las metricas y promedios vienen de C/backend.
+      for (const id of this.algoritmosActivos()) {
+        const resultado = await firstValueFrom(this.api.ejecutar({
+          algorithmId: id,
+          processes: this.procesos().map(p => ({ pid: p.pid, arrivalTime: p.llegada, burstTime: p.rafaga, priority: p.prioridad })),
+          ...(id === 'rr' ? { quantum: this.quantum()! } : {}),
+        }));
+        this.resultados.update(anteriores => ({ ...anteriores, [id]: resultado }));
+      }
+      this.algoritmoSeleccionado.set(this.algoritmosActivos()[0]);
+      this.vistaActual.set('resultados');
+      this.historial.set((await firstValueFrom(this.api.historial())).items);
+    } catch (error) { this.mostrarError(error); }
+    finally { this.cargando.set(false); }
+  }
+
+  async cargarHistorial() {
+    if (this.cargando()) return;
+    this.cargando.set(true); this.error.set('');
+    try { this.historial.set((await firstValueFrom(this.api.historial())).items); }
+    catch (error) { this.mostrarError(error); }
+    finally { this.cargando.set(false); }
+  }
+
+  async abrirPlanificacion(id: string) {
+    if (this.cargando()) return;
+    this.cargando.set(true); this.error.set('');
+    try {
+      const resultado = await firstValueFrom(this.api.detalle(id));
+      this.procesos.set(resultado.processes.map(p => ({ pid: p.pid, llegada: p.arrivalTime, rafaga: p.burstTime, prioridad: p.priority })));
+      this.resultados.set({ [resultado.algorithmId]: resultado });
+      this.algoritmoSeleccionado.set(resultado.algorithmId);
+      this.algoritmosActivos.set([resultado.algorithmId]);
+      // El contrato HTTP no publica el quantum historico; no inventar su valor.
+      if (resultado.algorithmId === 'rr') this.quantum.set(null);
+      this.vistaActual.set('resultados');
+    } catch (error) { this.mostrarError(error); }
+    finally { this.cargando.set(false); }
+  }
+
+  private mostrarError(error: unknown) {
+    this.error.set(error instanceof HttpErrorResponse
+      ? error.status === 401 ? 'Sesion no valida. Inicia sesion nuevamente.' : error.error?.message ?? 'No se pudo conectar con el backend.'
+      : error instanceof Error ? error.message : 'No se pudo completar la operacion.');
   }
 
   eliminarProceso(pid: number) {
     this.procesos.update(lista => lista.filter(p => p.pid !== pid));
+    this.resultados.set({});
   }
 
-  iniciarSesion() { this.sesionIniciada.set(true); this.vistaActual.set('inicio'); }
-  cerrarSesion() { this.sesionIniciada.set(false); this.vistaActual.set('configuracion'); }
+  iniciarSesion() { return this.auth.iniciarSesion(this.correo); }
+  cerrarSesion() { return this.auth.cerrarSesion(); }
   exportarInforme() { window.print(); }
-  alternarModoRegistro() { this.modoRegistro.update(valor => !valor); }
   colorProceso(pid: number) { return ['#2b84ea', '#3b82f6', '#f59e0b', '#8b5cf6', '#14b8a6', '#ec4899'][(Math.max(1, pid) - 1) % 6]; }
   alternarAlgoritmo(alg: string, activo: boolean) {
     this.algoritmosActivos.update(lista => activo ? [...new Set([...lista, alg])] : lista.filter(item => item !== alg));
     if (this.algoritmosActivos().length && !this.algoritmosActivos().includes(this.algoritmoSeleccionado())) {
-      this.cambiarAlgoritmo(this.algoritmosActivos()[0] as 'SJF' | 'FIFO' | 'SRTF' | 'RR');
+      this.cambiarAlgoritmo(this.algoritmosActivos()[0]);
     }
   }
   abrirNuevoProceso() { this.procesoEditando.set(null); this.borradorProceso = this.procesoVacio(); this.mostrarFormularioProceso.set(true); }
@@ -128,10 +217,12 @@ export class App {
       this.procesos.update(lista => lista.map(p => p.pid === editando ? { ...this.borradorProceso, pid: editando } : p));
     }
     this.mostrarFormularioProceso.set(false);
+    this.resultados.set({});
   }
   cargarConjunto(id: number) {
     const conjunto = this.conjuntos().find(item => item.id === id);
     if (conjunto) this.procesos.set(conjunto.procesos.map(p => ({ ...p })));
+    this.resultados.set({});
   }
   guardarConjunto() {
     if (!this.nombreConjunto.trim()) return;
@@ -147,56 +238,4 @@ export class App {
   private procesoVacio(): Proceso { return { pid: 0, llegada: 0, rafaga: 1, prioridad: 1 }; }
   private clonarProcesosIniciales(): Proceso[] { return [{ pid: 1, llegada: 0, rafaga: 8, prioridad: 3 }, { pid: 2, llegada: 2, rafaga: 4, prioridad: 1 }, { pid: 3, llegada: 4, rafaga: 9, prioridad: 2 }, { pid: 4, llegada: 5, rafaga: 5, prioridad: 4 }]; }
 
-  private promedio(campo: keyof MetricaProceso): number {
-    const lista = this.metricas();
-    return lista.length ? lista.reduce((total, m) => total + Number(m[campo]), 0) / lista.length : 0;
-  }
-
-  private simular(algoritmo: string): { rebanadas: RebanadaGantt[]; metricas: MetricaProceso[] } {
-    const procesos = [...this.procesos()].sort((a, b) => a.llegada - b.llegada || a.pid - b.pid);
-    if (!procesos.length) return { rebanadas: [], metricas: [] };
-    const restantes = new Map(procesos.map(p => [p.pid, p.rafaga]));
-    const primerInicio = new Map<number, number>();
-    const fin = new Map<number, number>();
-    const tramos: Array<{ pid: number; inicio: number; fin: number }> = [];
-    let tiempo = 0;
-    const segmento = (pid: number, inicio: number, final: number) => {
-      const ultimo = tramos[tramos.length - 1];
-      if (ultimo && ultimo.pid === pid && ultimo.fin === inicio) ultimo.fin = final;
-      else tramos.push({ pid, inicio, fin: final });
-    };
-    if (algoritmo === 'FIFO' || algoritmo === 'SJF') {
-      const pendientes = [...procesos];
-      while (pendientes.length) {
-        const disponibles = pendientes.filter(p => p.llegada <= tiempo);
-        if (!disponibles.length) { const siguiente = Math.min(...pendientes.map(p => p.llegada)); segmento(-1, tiempo, siguiente); tiempo = siguiente; continue; }
-        const p = (algoritmo === 'SJF' ? disponibles.sort((a, b) => a.rafaga - b.rafaga || a.llegada - b.llegada || a.pid - b.pid) : disponibles.sort((a, b) => a.llegada - b.llegada || a.pid - b.pid))[0];
-        pendientes.splice(pendientes.findIndex(item => item.pid === p.pid), 1); primerInicio.set(p.pid, tiempo); segmento(p.pid, tiempo, tiempo + p.rafaga); tiempo += p.rafaga; fin.set(p.pid, tiempo);
-      }
-    } else if (algoritmo === 'RR') {
-      const pendientes = [...procesos]; const cola: Proceso[] = []; const quantum = Math.max(1, this.quantum());
-      while (pendientes.length || cola.length) {
-        while (pendientes.length && pendientes[0].llegada <= tiempo) cola.push(pendientes.shift()!);
-        if (!cola.length) { const siguiente = pendientes[0].llegada; segmento(-1, tiempo, siguiente); tiempo = siguiente; continue; }
-        const p = cola.shift()!; if (!primerInicio.has(p.pid)) primerInicio.set(p.pid, tiempo);
-        const ejecutar = Math.min(quantum, restantes.get(p.pid)!);
-        segmento(p.pid, tiempo, tiempo + ejecutar);
-        for (let tick = 0; tick < ejecutar; tick++) { tiempo++; restantes.set(p.pid, restantes.get(p.pid)! - 1); while (pendientes.length && pendientes[0].llegada <= tiempo) cola.push(pendientes.shift()!); }
-        if (restantes.get(p.pid) === 0) fin.set(p.pid, tiempo); else cola.push(p);
-      }
-    } else {
-      while (procesos.some(p => !fin.has(p.pid))) {
-        const disponibles = procesos.filter(p => p.llegada <= tiempo && !fin.has(p.pid));
-        if (!disponibles.length) { const siguiente = Math.min(...procesos.filter(p => !fin.has(p.pid)).map(p => p.llegada)); segmento(-1, tiempo, siguiente); tiempo = siguiente; continue; }
-        const p = disponibles.sort((a, b) => restantes.get(a.pid)! - restantes.get(b.pid)! || a.llegada - b.llegada || a.pid - b.pid)[0];
-        if (!primerInicio.has(p.pid)) primerInicio.set(p.pid, tiempo);
-        segmento(p.pid, tiempo, tiempo + 1); restantes.set(p.pid, restantes.get(p.pid)! - 1); tiempo++;
-        if (restantes.get(p.pid) === 0) fin.set(p.pid, tiempo);
-      }
-    }
-    const colores = ['#2b84ea', '#3b82f6', '#f59e0b', '#8b5cf6', '#14b8a6', '#ec4899'];
-    const rebanadas = tramos.map(t => ({ ...t, color: t.pid === -1 ? '#94a3b8' : colores[(Math.max(1, t.pid) - 1) % colores.length] }));
-    const metricas = procesos.map(p => { const final = fin.get(p.pid) ?? 0; const respuesta = (primerInicio.get(p.pid) ?? p.llegada) - p.llegada; const retorno = final - p.llegada; return { pid: p.pid, llegada: p.llegada, rafaga: p.rafaga, fin: final, retorno, espera: retorno - p.rafaga, respuesta }; });
-    return { rebanadas, metricas };
-  }
 }

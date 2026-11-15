@@ -7,12 +7,13 @@
   <div class="login-panel">
     <div class="uceva-mark">UCEVA <small>Instituci&oacute;n de Educaci&oacute;n Superior</small></div>
     <form (ngSubmit)="iniciarSesion()">
-      <h1><ng-container *ngIf="modoRegistro(); else tituloLogin">Crear cuenta</ng-container><ng-template #tituloLogin>Iniciar Sesi&oacute;n</ng-template></h1>
+      <h1>Iniciar Sesi&oacute;n</h1>
       <p>Acceso al simulador de planificaci&oacute;n de procesos</p>
-      <label>Usuario o correo<input name="correo" [(ngModel)]="correo" required autocomplete="username" placeholder="Usuario o Correo"></label>
-      <label>Contrase&ntilde;a<input name="contrasena" [(ngModel)]="contrasena" required type="password" autocomplete="current-password" placeholder="Contrase&ntilde;a"></label>
-      <button class="primary-button" type="submit"><ng-container *ngIf="modoRegistro(); else textoLogin">Crear cuenta</ng-container><ng-template #textoLogin>Iniciar Sesi&oacute;n</ng-template> <span aria-hidden="true">&#8594;</span></button>
-      <button class="link-button" type="button" (click)="alternarModoRegistro()"><ng-container *ngIf="modoRegistro(); else enlaceRegistro">Ya tengo cuenta</ng-container><ng-template #enlaceRegistro>&iquest;A&uacute;n no tiene cuenta? Crear cuenta</ng-template></button>
+      <label>Usuario o correo (opcional)<input name="correo" [(ngModel)]="correo" autocomplete="username" placeholder="Usuario o Correo"></label>
+      <p>Tu contrase&ntilde;a se introduce &uacute;nicamente en Keycloak.</p>
+      <button class="primary-button" type="submit">Acceder con Keycloak <span aria-hidden="true">&#8594;</span></button>
+      <p class="link-button">Las cuentas se administran en Keycloak.</p>
+      <p *ngIf="auth.error()" role="alert">{{ auth.error() }}</p>
       <div class="security-note">&#128274; Los Naufragos · Simulador CPU</div>
     </form>
   </div>
@@ -36,6 +37,7 @@
       <button class="nav-btn" [class.active]="vistaActual() === 'configuracion'" (click)="cambiarVista('configuracion')">&#9881; Configuraci&oacute;n</button>
       <button class="nav-btn" [class.active]="vistaActual() === 'resultados'" (click)="cambiarVista('resultados')">&#9636; Resultados</button>
       <button class="nav-btn" [class.active]="vistaActual() === 'conjuntos'" (click)="cambiarVista('conjuntos')">&#128194; Conjuntos de Prueba</button>
+      <button class="nav-btn" aria-label="Historial" [class.active]="vistaActual() === 'historial'" (click)="cambiarVista('historial')">&#128337; Historial</button>
     </nav>
   </aside>
 
@@ -48,7 +50,7 @@
         <h1 style="font-size: 24px; color: #0f172a; margin: 0 0 4px 0; font-weight: 700;">
           <ng-container [ngSwitch]="vistaActual()">
             <span *ngSwitchCase="'inicio'">Inicio</span><span *ngSwitchCase="'configuracion'">Configuraci&oacute;n de la Simulaci&oacute;n</span>
-            <span *ngSwitchCase="'resultados'">Resultados y Gr&aacute;ficas de Simulaci&oacute;n</span><span *ngSwitchCase="'conjuntos'">Gesti&oacute;n de Conjuntos de Prueba</span>
+            <span *ngSwitchCase="'resultados'">Resultados y Gr&aacute;ficas de Simulaci&oacute;n</span><span *ngSwitchCase="'conjuntos'">Gesti&oacute;n de Conjuntos de Prueba</span><span *ngSwitchCase="'historial'">Historial de Planificaciones</span>
           </ng-container>
         </h1>
         <p style="color: #64748b; font-size: 14px; margin: 0;">
@@ -63,13 +65,19 @@
 
       <div style="display: flex; align-items: center; gap: 12px;">
         <div style="text-align: right;">
-          <div style="font-weight: 600; font-size: 14px; color: #1e293b;">{{ usuario }}</div>
-          <div style="font-size: 12px; color: #64748b;">Estudiante UCEVA</div>
+          <div style="font-weight: 600; font-size: 14px; color: #1e293b;">{{ usuario() }}</div>
+          <div style="font-size: 12px; color: #64748b;">Usuario autenticado</div>
         </div>
-        <div style="width: 36px; height: 36px; background: #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569;">JP</div>
+        <div style="width: 36px; height: 36px; background: #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #475569;">{{ usuario().slice(0, 2).toUpperCase() }}</div>
         <button style="background: white; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; color: #334155;" (click)="cerrarSesion()">Cerrar Sesi&oacute;n</button>
       </div>
     </header>
+
+    <p *ngIf="cargando()" role="status">Cargando datos del backend...</p>
+    <div *ngIf="error() || auth.error()" role="alert" class="content-card">
+      {{ error() || auth.error() }}
+      <button class="secondary-button" (click)="cargarDatos()" [disabled]="cargando()">Reintentar</button>
+    </div>
 
     <!-- VISTA 1: CONFIGURACI&Oacute;N -->
     <section *ngIf="vistaActual() === 'inicio'" class="welcome-panel">
@@ -114,21 +122,11 @@
         <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
           <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #0f172a;">Algoritmos a Ejecutar</h3>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
-              <input type="checkbox" [checked]="algoritmosActivos().includes('FIFO')" (change)="alternarAlgoritmo('FIFO', $any($event.target).checked)" style="margin-top: 3px;">
-              <div><strong style="display: block; font-size: 14px;">FIFO</strong><span style="font-size: 12px; color: #64748b;">First In, First Out</span></div>
-            </label>
-            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
-              <input type="checkbox" [checked]="algoritmosActivos().includes('SJF')" (change)="alternarAlgoritmo('SJF', $any($event.target).checked)" style="margin-top: 3px;">
-              <div><strong style="display: block; font-size: 14px;">SJF</strong><span style="font-size: 12px; color: #64748b;">Shortest Job First</span></div>
-            </label>
-            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
-              <input type="checkbox" [checked]="algoritmosActivos().includes('SRTF')" (change)="alternarAlgoritmo('SRTF', $any($event.target).checked)" style="margin-top: 3px;">
-              <div><strong style="display: block; font-size: 14px;">SRTF</strong><span style="font-size: 12px; color: #64748b;">Shortest Remaining Time</span></div>
-            </label>
-            <label style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
-              <input type="checkbox" [checked]="algoritmosActivos().includes('RR')" (change)="alternarAlgoritmo('RR', $any($event.target).checked)" style="margin-top: 3px;">
-              <div><strong style="display: block; font-size: 14px;">Round Robin</strong><span style="font-size: 12px; color: #64748b;">Quantum: <input type="number" min="1" [ngModel]="quantum()" (ngModelChange)="quantum.set(+$event)" name="quantum" style="width: 48px; padding: 2px;"></span></div>
+            <label *ngFor="let algoritmo of algoritmosDisponibles()" style="display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+              <input type="checkbox" [checked]="algoritmosActivos().includes(algoritmo.id)" (change)="alternarAlgoritmo(algoritmo.id, $any($event.target).checked)" [disabled]="cargando()" style="margin-top: 3px;">
+              <div><strong style="display: block; font-size: 14px;">{{ nombreAlgoritmo(algoritmo.id) }}</strong><span *ngIf="algoritmo.id !== 'rr'" style="font-size: 12px; color: #64748b;">Motor C</span>
+                <span *ngIf="algoritmo.id === 'rr'" style="font-size: 12px; color: #64748b;">Quantum: <input aria-label="Quantum de Round Robin" type="number" min="1" [ngModel]="quantum()" (ngModelChange)="quantum.set($event === null ? null : +$event)" name="quantum" style="width: 48px; padding: 2px;"></span>
+              </div>
             </label>
           </div>
         </div>
@@ -138,14 +136,14 @@
       <div style="display: flex; flex-direction: column; gap: 24px;">
         <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
           <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #0f172a;">Cargar Conjunto de Prueba</h4>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Seleccione una configuraci&oacute;n guardada previamente.</p>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Conjuntos locales provisionales, sin persistencia.</p>
           <select [ngModel]="conjuntoSeleccionado()" (ngModelChange)="conjuntoSeleccionado.set(+$event)" [ngModelOptions]="{standalone: true}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; margin-bottom: 16px; background: #f8fafc;">
             <option *ngFor="let conjunto of conjuntos()" [ngValue]="conjunto.id">{{ conjunto.nombre }}</option>
           </select>
           <button style="width: 100%; background: #0f2b48; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;" (click)="cargarConjunto(conjuntoSeleccionado())">Cargar Escenario</button>
         </div>
 
-        <div style="background: linear-gradient(135deg, #2b84ea 0%, #1d68c4 100%); border-radius: 12px; padding: 32px 20px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(43, 132, 234, 0.3); cursor: pointer;" (click)="cambiarVista('resultados')">
+        <div style="background: linear-gradient(135deg, #2b84ea 0%, #1d68c4 100%); border-radius: 12px; padding: 32px 20px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(43, 132, 234, 0.3); cursor: pointer;" (click)="ejecutarSimulacion()" role="button" aria-label="Ejecutar Simulación" tabindex="0" (keydown.enter)="ejecutarSimulacion()" (keydown.space)="$event.preventDefault(); ejecutarSimulacion()" [attr.aria-disabled]="cargando()">
           <div style="font-size: 28px; font-weight: bold; margin-bottom: 4px;">PLAY</div>
           <h3 style="margin: 0 0 4px 0; font-size: 18px;">Ejecutar Simulaci&oacute;n</h3>
           <p style="margin: 0; font-size: 12px; opacity: 0.9;">Compara los algoritmos en tiempo real</p>
@@ -153,42 +151,16 @@
       </div>
     </div>
 
+    <p *ngIf="vistaActual() === 'resultados' && !resultadoActual()" class="empty-state">Ejecuta una simulaci&oacute;n o abre una planificaci&oacute;n del historial para ver resultados reales.</p>
     <!-- VISTA 2: RESULTADOS Y GANTT -->
-    <div *ngIf="vistaActual() === 'resultados'" class="results-layout" style="display: flex; flex-direction: column; gap: 24px;">
+    <div *ngIf="vistaActual() === 'resultados' && resultadoActual()" class="results-layout" style="display: flex; flex-direction: column; gap: 24px;">
 
       <!-- PESTA&Ntilde;AS DE ALGORITMOS -->
       <!-- PESTA&Ntilde;AS DE ALGORITMOS -->
       <div style="display: flex; gap: 12px;">
-        <button
-          *ngIf="algoritmosActivos().includes('SJF')"
-          [class.active-tab]="algoritmoSeleccionado() === 'SJF'"
-          (click)="cambiarAlgoritmo('SJF')"
-          class="btn-tab">
-          SJF (&Oacute;ptimo)
-        </button>
-
-        <button
-          *ngIf="algoritmosActivos().includes('FIFO')"
-          [class.active-tab]="algoritmoSeleccionado() === 'FIFO'"
-          (click)="cambiarAlgoritmo('FIFO')"
-          class="btn-tab">
-          FIFO
-        </button>
-
-        <button
-          *ngIf="algoritmosActivos().includes('SRTF')"
-          [class.active-tab]="algoritmoSeleccionado() === 'SRTF'"
-          (click)="cambiarAlgoritmo('SRTF')"
-          class="btn-tab">
-          SRTF
-        </button>
-
-        <button
-          *ngIf="algoritmosActivos().includes('RR')"
-          [class.active-tab]="algoritmoSeleccionado() === 'RR'"
-          (click)="cambiarAlgoritmo('RR')"
-          class="btn-tab">
-          Round Robin
+        <button *ngFor="let algoritmo of algoritmosDisponibles()" [hidden]="!algoritmosActivos().includes(algoritmo.id)"
+          [class.active-tab]="algoritmoSeleccionado() === algoritmo.id" (click)="cambiarAlgoritmo(algoritmo.id)" class="btn-tab">
+          {{ nombreAlgoritmo(algoritmo.id) }}
         </button>
       </div>
       <p *ngIf="algoritmosActivos().length === 0" class="empty-state">Seleccione al menos un algoritmo en Configuraci&oacute;n.</p>
@@ -196,7 +168,7 @@
       <!-- TARJETA DIAGRAMA DE GANTT -->
       <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h3 style="margin: 0; font-size: 16px; color: #0f172a;">Diagrama de Gantt - {{ algoritmoSeleccionado() }}</h3>
+          <h3 style="margin: 0; font-size: 16px; color: #0f172a;">Diagrama de Gantt - {{ nombreAlgoritmo(algoritmoSeleccionado()) }}</h3>
 
           <div style="display: flex; gap: 12px; font-size: 12px; color: #64748b;">
             <span *ngFor="let pid of procesos()" style="display: flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px;" [style.background-color]="colorProceso(pid.pid)"></span> P{{ pid.pid }}</span>
@@ -209,7 +181,7 @@
                [style.flex-grow]="r.fin - r.inicio"
                [style.background-color]="r.color"
                style="color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.3); font-size: 14px; flex-basis: 0; min-width: 0; overflow: hidden;">
-            {{ r.pid === -1 ? 'CPU Ociosa' : 'P' + r.pid }}
+            {{ r.kind === 'idle' ? 'CPU Ociosa' : 'P' + r.pid }}
           </div>
         </div>
 
@@ -221,7 +193,7 @@
 
       <!-- TARJETA M&Eacute;TRICAS POR PROCESO -->
       <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #0f172a;">M&eacute;tricas por Proceso - {{ algoritmoSeleccionado() }}</h3>
+        <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #0f172a;">M&eacute;tricas por Proceso - {{ nombreAlgoritmo(algoritmoSeleccionado()) }}</h3>
 
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
           <thead>
@@ -248,7 +220,7 @@
           <tr style="background: #fef9c3; font-weight: bold; border-top: 2px solid #fef08a;">
             <td style="padding: 12px 10px; color: #854d0e;">Promedios</td>
             <td style="padding: 12px 10px;">&#8212;</td>
-            <td style="padding: 12px 10px; color: #854d0e;">{{ promedioRafaga() | number:'1.1-1' }} ms</td>
+            <td style="padding: 12px 10px; color: #854d0e;">&#8212;</td>
             <td style="padding: 12px 10px;">&#8212;</td>
             <td style="padding: 12px 10px; color: #854d0e;">{{ promedioRetorno() | number:'1.1-1' }} ms</td>
             <td style="padding: 12px 10px; color: #854d0e;">{{ promedioEspera() | number:'1.1-1' }} ms</td>
@@ -261,7 +233,7 @@
       <!-- BANNER VERDE -->
       <div style="display: flex; justify-content: space-between; align-items: center; background: #dcfce7; border: 1px solid #86efac; padding: 16px 24px; border-radius: 12px; color: #166534;">
         <div style="font-weight: 600; font-size: 14px;">
-          <ng-container *ngIf="algoritmoGanador() as ganador; else sinComparacion">El algoritmo {{ ganador.algoritmo }} obtuvo el menor tiempo medio de espera: {{ ganador.espera | number:'1.1-1' }} ms</ng-container>
+          <ng-container *ngIf="algoritmoGanador() as ganador; else sinComparacion">El algoritmo {{ nombreAlgoritmo(ganador.algoritmo) }} obtuvo el menor tiempo medio de espera: {{ ganador.espera | number:'1.1-1' }} ms</ng-container>
           <ng-template #sinComparacion>Seleccione algoritmos para comparar el tiempo medio de espera.</ng-template>
         </div>
         <div style="display: flex; gap: 12px;">
@@ -273,6 +245,7 @@
     </div>
 
     <section *ngIf="vistaActual() === 'conjuntos'" class="content-card test-bank-page">
+      <p role="note">Provisional: estos conjuntos solo existen en memoria del navegador. No se guardan en PostgreSQL; proceso-service sigue pendiente.</p>
       <div class="section-heading"><h2>Bancos de Prueba Guardados</h2><button class="primary-button" type="button" (click)="cancelarEdicionConjunto()">+ Crear Nuevo Banco</button></div>
       <div class="table-scroll"><table class="data-table">
         <thead><tr><th>Nombre</th><th>Descripci&oacute;n</th><th>Fecha Creaci&oacute;n</th><th>Procesos</th><th>Acciones</th></tr></thead>
@@ -295,6 +268,17 @@
       <h3>Procesos incluidos ({{ procesos().length }})</h3>
       <div class="process-chips"><span *ngFor="let p of procesos()">P{{ p.pid }} &middot; {{ p.llegada }} ms &middot; {{ p.rafaga }} ms</span><span *ngIf="!procesos().length">Agregue procesos desde Configuraci&oacute;n.</span></div>
       <div class="form-actions"><button type="button" class="secondary-button" (click)="cancelarEdicionConjunto()">Cancelar</button><button type="button" class="primary-button" (click)="guardarConjunto()" [disabled]="!nombreConjunto.trim()">Guardar Banco</button></div>
+    </section>
+
+    <section *ngIf="vistaActual() === 'historial'" class="content-card">
+      <div class="section-heading"><h2>Mis planificaciones</h2><button class="primary-button" (click)="cargarHistorial()" [disabled]="cargando()">Actualizar historial</button></div>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Fecha</th><th>Algoritmo</th><th>Espera promedio</th><th>Acciones</th></tr></thead>
+        <tbody><tr *ngFor="let corrida of historial()"><td>{{ corrida.createdAt | date:'short' }}</td><td>{{ nombreAlgoritmo(corrida.algorithmId) }}</td><td>{{ corrida.averages.waitingTime | number:'1.1-1' }} ms</td><td class="row-actions"><button (click)="abrirPlanificacion(corrida.planificationId)" [disabled]="cargando()">Ver resultados</button></td></tr>
+          <tr *ngIf="!historial().length && !cargando()"><td colspan="4" class="empty-state">A&uacute;n no tienes planificaciones guardadas.</td></tr>
+        </tbody>
+      </table></div>
+      <p>Al recuperar Round Robin, vuelve a indicar el quantum si deseas ejecutar otra corrida: el contrato HTTP no publica su valor hist&oacute;rico.</p>
     </section>
 
     <div *ngIf="mostrarFormularioProceso()" class="modal-backdrop" (click)="mostrarFormularioProceso.set(false)">

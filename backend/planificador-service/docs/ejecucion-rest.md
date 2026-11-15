@@ -31,6 +31,8 @@ PostgreSQL usa localhost:5432 y Keycloak localhost:8080. Ambos deben ser alcanza
 
 ## Keycloak
 
+En desarrollo local se habilita **Realm settings → Login → User registration** para `planificador-realm` (`registrationAllowed: true` en la plantilla local). El enlace **Register / Registrarse** aparece en el formulario de Keycloak tras pulsar **Acceder con Keycloak** en Angular. No se habilitó registro en ningún entorno externo ni se modificó la validación JWT. Una cuenta registrada desde ese formulario pudo iniciar sesión, consultar el catálogo, guardar una planificación y recuperar su historial independiente; consultar una planificación ajena devolvió 404.
+
 En `http://localhost:8080`, iniciar la consola administrativa con las credenciales de `infra/.env`.
 
 Si aún no existe `planificador-realm`, crearlo importando [dev/keycloak-realm.json](../dev/keycloak-realm.json). Es una plantilla local sin usuarios ni contraseñas: cliente público `angular-desarrollo`, Authorization Code + PKCE S256, redirect localhost:4200 y audiencia `planificador-service` en los access tokens. No habilita password grant.
@@ -41,6 +43,8 @@ Si la compañera ya configuró un realm/cliente, **no importarlo ni reemplazarlo
 2. `KEYCLOAK_JWK_SET_URI` con su endpoint de certificados.
 3. Un mapper de audiencia que incluya `planificador-service` en el access token de Angular, o `KEYCLOAK_AUDIENCE` con la audiencia ya acordada.
 4. Redirect URI y origen explícitos de Angular.
+
+El cliente Angular debe tener los scopes por defecto `basic`, `profile`, `email` y `roles`: en Keycloak 25, `basic` añade el `sub` al access token. Para logout, configurar `post.logout.redirect.uris` como `+` (reutiliza las redirect URIs explícitas). En un realm existente ajustar solo el cliente, sin reimportar el realm. Los pasos y resultados de la integración Angular real están en el [README del frontend](../../../frontend/README.md).
 
 Los usuarios y contraseñas de desarrollo se crean en Keycloak. Angular obtiene un access token mediante OIDC y lo envía en `Authorization`; no usar el ID token. Para curl puede usarse el access token de una sesión Angular. El backend no implementa login ni recibe contraseñas de usuarios.
 
