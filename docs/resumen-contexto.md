@@ -1,5 +1,20 @@
 # Resumen de contexto y continuidad
 
+## Estado vigente: 2026-11-15 — proceso-service
+
+Este bloque prevalece sobre los estados históricos que siguen. Rama `integracion`, base `6198b6f` (integración Angular–Spring Boot). Sin commits ni pushes en esta etapa.
+
+- Implementado `backend/proceso-service`: Java 21, Spring Boot 3.5.7, JDBC, puerto 8082 y PostgreSQL `proceso_db`/`proceso_user` existentes.
+- Endpoints OpenAPI: GET /conjuntos, POST /conjuntos (201), GET /conjuntos/{conjuntoId}, DELETE /conjuntos/{conjuntoId} (204). JSON y errores conforme al contrato; sin edición ni conjuntos personales.
+- Lectura para cualquier JWT válido. Escritura solo con realm role exacto `docente` en `realm_access.roles`. Firma/JWKS, emisor, expiración, audiencia `proceso-service` y sub validados. Creador exclusivamente desde sub; sin usuarios ni contraseñas propios.
+- Tablas `conjuntos` y `procesos`, PID único por conjunto, posición original, FK y cascada. Creación transaccional con rollback completo. Validaciones de campos, tamaños, PID único no negativo, llegada no negativa y ráfaga positiva; prioridad entera obligatoria.
+- Maven package exitoso con seis pruebas HTTP, sin fallos, errores ni omisiones: Tomcat, H2 y JWT RSA/JWKS local; roles, consulta sin roles, validaciones, cascada, rollback tras primera inserción y errores SQL controlados 409/500.
+- Integración real el 2026-11-15, Java 21 Windows con PostgreSQL/Keycloak existentes: GET lista/detalle 200, POST docente 201, DELETE docente 204, estudiante GET 200 y POST/DELETE 403; 401, 400 y 404. SQL confirmó sub, dos procesos y cascada. Persistencia idéntica tras reiniciar únicamente la JVM nueva.
+- Se conservó el conjunto de ensayo `307631cc-d7b9-4eaf-8089-592712285425`; el eliminado fue creado por el ensayo. No había conjuntos previos. Se añadieron roles si faltaban, un cliente separado y dos usuarios técnicos en Keycloak; permanecen sin guardar sus contraseñas. El cliente Angular no se modificó.
+- README del servicio: IntelliJ, entorno, roles/audiencia, HTTP y resultados. Ensayo reproducible: `backend/proceso-service/dev/verificar-real.py`; evidencia local sin secretos en `target/verificacion-real.json`. Su JVM quedó detenida, 8082 libre. PostgreSQL, Keycloak y planificador-service no se reiniciaron.
+- Angular, C, OpenAPI, infraestructura y planificador-service sin cambios; no se repitieron sus suites. La planificación sigue recibiendo procesos completos. Para integrar conjuntos con Angular posteriormente, añadir en Keycloak el mapper de audiencia `proceso-service` conservando el existente; documentado, sin modificar el cliente actual.
+
+
 **Estado vigente: 2026-11-13.** Este bloque sustituye las afirmaciones de estado actual del registro anterior, que se conserva debajo para no perder contexto ni trabajo local previo.
 
 ## Estado verificado

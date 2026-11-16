@@ -58,6 +58,22 @@ planificador-service	GET /historial y GET /historial/{planificacionId}	Propuesta
 proceso-service	POST /conjuntos, GET /conjuntos, GET /conjuntos/{conjuntoId}, DELETE /conjuntos/{conjuntoId}	Propuestas para registrar, consultar y eliminar conjuntos de referencia; validar rutas, identificadores, campos, roles y códigos HTTP.
 
 
+## 2026-11-15 — proceso-service mínimo aprobado
+
+El usuario autorizó las cuatro rutas de conjuntos de OpenAPI desde `integracion`, base `6198b6f`, sin commits/pushes. Implementado en backend/proceso-service con Java 21, Spring Boot 3.5.7, JDBC, puerto 8082 y proceso_db/proceso_user existentes. Angular, C, OpenAPI, infraestructura y planificador-service sin cambios.
+
+GET lista/detalle para cualquier JWT válido; POST (201) y DELETE (204) solo con realm role `docente` de realm_access.roles. Firma/JWKS, emisor, audiencia proceso-service, expiración y sub validados. Creador guardado exclusivamente por sub, sin cuentas propias ni campos públicos adicionales. Sin edición ni conjuntos personales. Cualquier docente puede eliminar conjuntos compartidos.
+
+Tablas conjuntos y procesos: posición original, PID único por conjunto, restricciones de tiempos y FK ON DELETE CASCADE. Creación transaccional con rollback completo. No se exige nombre único. UUID canónico para IDs; inválidos e inexistentes devuelven 404 en GET/DELETE, donde OpenAPI no define 400. Errores de integridad 409 e internos 500 sin SQL en la respuesta.
+
+Maven package exitoso: seis pruebas HTTP, cero fallos, errores u omisiones, con Tomcat/H2 y JWT RSA/JWKS local. Ciclo completo, roles, consulta sin roles, validación, cascada, rollback tras primera inserción y fallos SQL controlados 409/500. No se provocaron fallos de infraestructura real.
+
+Integración real el 2026-11-15: PostgreSQL y Keycloak existentes, Java 21 Windows. GET lista/detalle 200, docente POST 201 y DELETE 204, estudiante GET 200 y POST/DELETE 403, JWT ausente/inválido 401, validación 400 e inexistente 404. SQL confirmó creador_sub, dos procesos y cascada. Reiniciar exclusivamente la JVM nueva recuperó el conjunto idéntico.
+
+Conservado el conjunto de ensayo 307631cc-d7b9-4eaf-8089-592712285425; eliminado solo otro conjunto creado por el ensayo. No había conjuntos previos. Se añadieron roles si faltaban, un cliente técnico separado y dos usuarios técnicos con contraseñas únicamente en memoria. No se modificaron usuarios/clientes preexistentes. La JVM de ensayo quedó detenida, 8082 libre; PostgreSQL y Keycloak permanecieron activos. No se actuó sobre planificador-service.
+
+README actualizado con IntelliJ, entorno, roles y HTTP; script dev/verificar-real.py e informe local target/verificacion-real.json sin secretos. El mapper de audiencia adicional para conectar Angular a conjuntos queda documentado para una etapa posterior, conservando el existente. No se repitieron las suites de Angular, C o planificador-service. Sin commits ni pushes.
+
 Estado del repositorio y fuentes
 - La raíz está inicializada como Git. No se crean commits como parte de esta bitácora.
 - La estructura acordada es frontend/, backend/, native/, infra/, tests/ y docs/.
