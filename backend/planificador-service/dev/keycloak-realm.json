@@ -2,6 +2,22 @@
   "realm": "planificador-realm",
   "enabled": true,
   "registrationAllowed": true,
+  "defaultRole": {
+    "name": "default-roles-planificador-realm"
+  },
+  "roles": {
+    "realm": [
+      { "name": "estudiante" },
+      { "name": "docente" },
+      {
+        "name": "default-roles-planificador-realm",
+        "composite": true,
+        "composites": {
+          "realm": ["offline_access", "uma_authorization", "estudiante"]
+        }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "angular-desarrollo",
@@ -19,6 +35,17 @@
       },
       "defaultClientScopes": ["basic", "profile", "email", "roles"],
       "protocolMappers": [
+        {
+          "name": "audiencia-proceso",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "proceso-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
         {
           "name": "audiencia-planificador",
           "protocol": "openid-connect",

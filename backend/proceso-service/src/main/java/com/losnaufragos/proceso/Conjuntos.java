@@ -41,8 +41,8 @@ class ConjuntoServicio {
     @Transactional(readOnly=true, isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Conjunto obtener(String id) {
         validarId(id);
-        return jdbc.sql("SELECT conjunto_id, name, description FROM conjuntos WHERE conjunto_id = ?").param(id)
-                .query((rs, row) -> new Conjunto(rs.getString(1), rs.getString(2), rs.getString(3), procesos(id)))
+        return jdbc.sql("SELECT conjunto_id, name, description, quantum FROM conjuntos WHERE conjunto_id = ?").param(id)
+                .query((rs, row) -> new Conjunto(rs.getString(1), rs.getString(2), rs.getString(3), procesos(id), rs.getObject(4, Long.class)))
                 .optional().orElseThrow(ConjuntoServicio::noEncontrado);
     }
 
@@ -58,14 +58,14 @@ class ConjuntoServicio {
             if (!ids.add(proceso.pid())) throw new IllegalArgumentException("Los pid deben ser unicos dentro de processes.");
         }
         String id = UUID.randomUUID().toString();
-        jdbc.sql("INSERT INTO conjuntos(conjunto_id, name, description, creador_sub) VALUES (?, ?, ?, ?)")
-                .params(Arrays.asList(id, solicitud.name(), solicitud.description(), sub)).update();
+        jdbc.sql("INSERT INTO conjuntos(conjunto_id, name, description, creador_sub, quantum) VALUES (?, ?, ?, ?, ?)")
+                .params(Arrays.asList(id, solicitud.name(), solicitud.description(), sub, solicitud.quantum())).update();
         int posicion = 0;
         for (var p : solicitud.processes()) {
             jdbc.sql("INSERT INTO procesos(conjunto_id, posicion, pid, arrival_time, burst_time, priority) VALUES (?, ?, ?, ?, ?, ?)")
                     .params(id, posicion++, p.pid(), p.arrivalTime(), p.burstTime(), p.priority()).update();
         }
-        return new Conjunto(id, solicitud.name(), solicitud.description(), List.copyOf(solicitud.processes()));
+        return new Conjunto(id, solicitud.name(), solicitud.description(), List.copyOf(solicitud.processes()), solicitud.quantum());
     }
 
     @Transactional

@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS conjuntos (
     description VARCHAR(2000),
     creador_sub VARCHAR(255) NOT NULL
 );
+-- Ampliacion compatible: no cambia las filas antiguas y puede repetirse al arrancar.
+ALTER TABLE conjuntos ADD COLUMN IF NOT EXISTS quantum BIGINT CHECK (quantum >= 1);
 CREATE TABLE IF NOT EXISTS procesos (
     conjunto_id VARCHAR(36) NOT NULL REFERENCES conjuntos(conjunto_id) ON DELETE CASCADE,
     posicion INTEGER NOT NULL CHECK (posicion >= 0),

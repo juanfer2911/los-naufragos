@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { App } from './app';
 import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from './auth.service';
 import { Planificacion } from './planificador-api.service';
 import { vi } from 'vitest';
@@ -13,7 +13,7 @@ describe('App', () => {
       imports: [App],
       providers: [provideHttpClient(), provideHttpClientTesting(), {
         provide: AuthService,
-        useValue: { sesionIniciada: signal(false), usuario: signal(''), error: signal(''),
+        useValue: { sesionIniciada: signal(false), usuario: signal(''), error: signal(''), esDocente: signal(false),
           iniciarSesion: vi.fn(), cerrarSesion: vi.fn() },
       }],
     })
@@ -51,5 +51,68 @@ describe('App', () => {
     expect(app.rebanadasGantt()[1].pid).toBe(0);
     expect(app.metricas()[0].fin).toBe(3);
     expect(app.promedioRetorno()).toBe(1);
+  });
+
+  it('oculta escritura para estudiante y muestra creacion y eliminacion para docente', () => {
+    const fixture = TestBed.createComponent(App); fixture.detectChanges();
+    const app = fixture.componentInstance;
+    app.sesionIniciada.set(true); app.vistaActual.set('conjuntos');
+    app.conjuntos.set([{ conjuntoId: 'compartido', name: 'Banco', processes: [] }]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Crear Nuevo Banco');
+    expect(fixture.nativeElement.querySelector('.danger-link')).toBeNull();
+    app.auth.esDocente.set(true); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Crear Nuevo Banco');
+    expect(fixture.nativeElement.querySelector('.danger-link')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Editar Banco');
+  });
+
+  it('rechaza escritura local de estudiante sin enviar HTTP', async () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    app.nombreConjunto = 'No autorizado';
+    await app.guardarConjunto(); await app.eliminarConjunto('id');
+    TestBed.inject(HttpTestingController).expectNone(() => true);
+  });
+
+  it('carga detalle real y envia procesos completos, quantum y sourceSetId al planificador', async () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    const http = TestBed.inject(HttpTestingController);
+    const processes = [{ pid: 3, arrivalTime: 1, burstTime: 4, priority: 0 }];
+    const cargado = app.cargarConjunto('compartido');
+    http.expectOne('http://localhost:8082/conjuntos/compartido').flush({ conjuntoId: 'compartido', name: 'Banco', processes, quantum: 8 });
+    await cargado;
+    expect(app.procesos()).toEqual([{ pid: 3, llegada: 1, rafaga: 4, prioridad: 0 }]);
+    expect(app.vistaActual()).toBe('configuracion');
+    expect(app.quantum()).toBe(8);
+    app.algoritmosActivos.set(['rr']); app.quantum.set(5);
+    const ejecutado = app.ejecutarSimulacion();
+    const post = http.expectOne('http://localhost:8081/planificaciones');
+    expect(post.request.body).toEqual({ algorithmId: 'rr', processes, quantum: 5, sourceSetId: 'compartido' });
+    post.flush({ algorithmId: 'rr', processes, segments: [], processMetrics: [], averages: { waitingTime: 0, turnaroundTime: 4, responseTime: 0 } });
+    await Promise.resolve(); await Promise.resolve();
+    http.expectOne('http://localhost:8081/historial').flush({ items: [] });
+    await ejecutado; http.verify();
+    expect(app.vistaActual()).toBe('resultados');
+  });
+
+  it('guarda el quantum configurado como dato del conjunto', async () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    const http = TestBed.inject(HttpTestingController);
+    app.auth.esDocente.set(true); app.nombreConjunto = 'Quantum propio'; app.quantum.set(8);
+    const guardado = app.guardarConjunto();
+    const post = http.expectOne('http://localhost:8082/conjuntos');
+    expect(post.request.body.quantum).toBe(8);
+    post.flush({ ...post.request.body, conjuntoId: 'nuevo' });
+    await guardado;
+    expect(app.conjuntos()[0].quantum).toBe(8); http.verify();
+  });
+
+  it('restablece 3 al cargar un conjunto antiguo sin quantum', async () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    const http = TestBed.inject(HttpTestingController);
+    app.quantum.set(8);
+    const cargado = app.cargarConjunto('antiguo');
+    http.expectOne('http://localhost:8082/conjuntos/antiguo').flush({ conjuntoId: 'antiguo', name: 'Antiguo', processes: [] });
+    await cargado; expect(app.quantum()).toBe(3); http.verify();
   });
 });

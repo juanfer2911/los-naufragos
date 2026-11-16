@@ -58,7 +58,7 @@
             <span *ngSwitchCase="'inicio'">Configure procesos, ejecute algoritmos y compare sus resultados.</span>
             <span *ngSwitchCase="'configuracion'">Ingrese los procesos y seleccione los algoritmos que desea comparar.</span>
             <span *ngSwitchCase="'resultados'">Visualice el Gantt, compare m&eacute;tricas de retorno, espera y respuesta.</span>
-            <span *ngSwitchCase="'conjuntos'">Cree, edite y configure bancos de prueba para sus simulaciones.</span>
+            <span *ngSwitchCase="'conjuntos'">Consulte y cargue conjuntos compartidos para sus simulaciones.</span>
           </ng-container>
         </p>
       </div>
@@ -136,11 +136,11 @@
       <div style="display: flex; flex-direction: column; gap: 24px;">
         <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
           <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #0f172a;">Cargar Conjunto de Prueba</h4>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Conjuntos locales provisionales, sin persistencia.</p>
-          <select [ngModel]="conjuntoSeleccionado()" (ngModelChange)="conjuntoSeleccionado.set(+$event)" [ngModelOptions]="{standalone: true}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; margin-bottom: 16px; background: #f8fafc;">
-            <option *ngFor="let conjunto of conjuntos()" [ngValue]="conjunto.id">{{ conjunto.nombre }}</option>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Conjuntos compartidos guardados en el servidor.</p>
+          <select [ngModel]="conjuntoSeleccionado()" (ngModelChange)="conjuntoSeleccionado.set($event)" [ngModelOptions]="{standalone: true}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; margin-bottom: 16px; background: #f8fafc;">
+            <option *ngFor="let conjunto of conjuntos()" [ngValue]="conjunto.conjuntoId">{{ conjunto.name }}</option>
           </select>
-          <button style="width: 100%; background: #0f2b48; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;" (click)="cargarConjunto(conjuntoSeleccionado())">Cargar Escenario</button>
+          <button style="width: 100%; background: #0f2b48; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;" [disabled]="cargandoConjuntos() || !conjuntoSeleccionado()" (click)="cargarConjunto(conjuntoSeleccionado())">Cargar Escenario</button>
         </div>
 
         <div style="background: linear-gradient(135deg, #2b84ea 0%, #1d68c4 100%); border-radius: 12px; padding: 32px 20px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(43, 132, 234, 0.3); cursor: pointer;" (click)="ejecutarSimulacion()" role="button" aria-label="Ejecutar Simulación" tabindex="0" (keydown.enter)="ejecutarSimulacion()" (keydown.space)="$event.preventDefault(); ejecutarSimulacion()" [attr.aria-disabled]="cargando()">
@@ -245,29 +245,30 @@
     </div>
 
     <section *ngIf="vistaActual() === 'conjuntos'" class="content-card test-bank-page">
-      <p role="note">Provisional: estos conjuntos solo existen en memoria del navegador. No se guardan en PostgreSQL; proceso-service sigue pendiente.</p>
-      <div class="section-heading"><h2>Bancos de Prueba Guardados</h2><button class="primary-button" type="button" (click)="cancelarEdicionConjunto()">+ Crear Nuevo Banco</button></div>
+      <p role="note">Conjuntos compartidos. Los docentes pueden crear y eliminar bancos; todos los usuarios autenticados pueden utilizarlos.</p>
+      <div class="section-heading"><h2>Bancos de Prueba Guardados</h2><button class="primary-button" type="button" *ngIf="auth.esDocente()" [disabled]="cargandoConjuntos()" (click)="nuevoConjunto()">+ Crear Nuevo Banco</button></div>
       <div class="table-scroll"><table class="data-table">
-        <thead><tr><th>Nombre</th><th>Descripci&oacute;n</th><th>Fecha Creaci&oacute;n</th><th>Procesos</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Descripci&oacute;n</th><th>Procesos</th><th>Acciones</th></tr></thead>
         <tbody>
           <tr *ngFor="let conjunto of conjuntos()">
-            <td><strong>{{ conjunto.nombre }}</strong></td><td>{{ conjunto.descripcion }}</td><td>{{ conjunto.fecha }}</td><td>{{ conjunto.procesos.length }}</td>
-            <td class="row-actions"><button type="button" (click)="cargarConjunto(conjunto.id)">Cargar</button><button type="button" (click)="editarConjunto(conjunto)">Editar</button><button type="button" class="danger-link" (click)="eliminarConjunto(conjunto.id)">Eliminar</button></td>
+            <td><strong>{{ conjunto.name }}</strong></td><td>{{ conjunto.description }}</td><td>{{ conjunto.processes.length }}</td>
+            <td class="row-actions"><button type="button" [disabled]="cargandoConjuntos()" (click)="cargarConjunto(conjunto.conjuntoId)">Cargar</button><button type="button" class="danger-link" *ngIf="auth.esDocente()" [disabled]="cargandoConjuntos()" (click)="eliminarConjunto(conjunto.conjuntoId)">Eliminar</button></td>
           </tr>
-          <tr *ngIf="conjuntos().length === 0"><td colspan="5" class="empty-state">A&uacute;n no hay conjuntos guardados.</td></tr>
+          <tr *ngIf="conjuntos().length === 0"><td colspan="4" class="empty-state">{{ cargandoConjuntos() ? 'Cargando conjuntos...' : 'Aun no hay conjuntos guardados.' }}</td></tr>
         </tbody>
       </table></div>
     </section>
 
-    <section *ngIf="vistaActual() === 'conjuntos'" class="content-card bank-editor">
-      <h2>{{ conjuntoEditando() === null ? 'Crear Nuevo Banco de Prueba' : 'Editar Banco de Prueba' }}</h2>
+    <section *ngIf="vistaActual() === 'conjuntos' && auth.esDocente() && mostrarFormularioConjunto()" class="content-card bank-editor">
+      <h2>Crear Nuevo Banco de Prueba</h2>
       <div class="bank-fields">
-        <label>Nombre del Conjunto<input name="nombreConjunto" [(ngModel)]="nombreConjunto" placeholder="Ej. Prueba 5 - Carga Alta" required></label>
-        <label>Descripci&oacute;n (opcional)<input name="descripcionConjunto" [(ngModel)]="descripcionConjunto" placeholder="Breve rese&ntilde;a de las r&aacute;fagas..."></label>
+        <label>Nombre del Conjunto<input maxlength="200" name="nombreConjunto" [(ngModel)]="nombreConjunto" placeholder="Ej. Prueba 5 - Carga Alta" required></label>
+        <label>Descripci&oacute;n (opcional)<input maxlength="2000" name="descripcionConjunto" [(ngModel)]="descripcionConjunto" placeholder="Breve rese&ntilde;a de las r&aacute;fagas..."></label>
       </div>
+      <button type="button" class="secondary-button" (click)="cambiarVista('configuracion')">Configurar procesos</button>
       <h3>Procesos incluidos ({{ procesos().length }})</h3>
       <div class="process-chips"><span *ngFor="let p of procesos()">P{{ p.pid }} &middot; {{ p.llegada }} ms &middot; {{ p.rafaga }} ms</span><span *ngIf="!procesos().length">Agregue procesos desde Configuraci&oacute;n.</span></div>
-      <div class="form-actions"><button type="button" class="secondary-button" (click)="cancelarEdicionConjunto()">Cancelar</button><button type="button" class="primary-button" (click)="guardarConjunto()" [disabled]="!nombreConjunto.trim()">Guardar Banco</button></div>
+      <div class="form-actions"><button type="button" class="secondary-button" (click)="cancelarEdicionConjunto()">Cancelar</button><button type="button" class="primary-button" (click)="guardarConjunto()" [disabled]="cargandoConjuntos() || !nombreConjunto.trim() || !procesos().length">Guardar Banco</button></div>
     </section>
 
     <section *ngIf="vistaActual() === 'historial'" class="content-card">

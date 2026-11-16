@@ -9,11 +9,14 @@ export class AuthService {
   readonly sesionIniciada = signal(false);
   readonly usuario = signal('');
   readonly error = signal('');
+  readonly esDocente = signal(false);
   private readonly keycloak = new Keycloak(appSettings.keycloak);
 
   async inicializar(): Promise<void> {
-    this.keycloak.onAuthLogout = () => this.sesionIniciada.set(false);
-    this.keycloak.onAuthRefreshError = () => this.sesionIniciada.set(false);
+    this.keycloak.onAuthSuccess = () => this.actualizarRol();
+    this.keycloak.onAuthRefreshSuccess = () => this.actualizarRol();
+    this.keycloak.onAuthLogout = () => { this.sesionIniciada.set(false); this.esDocente.set(false); };
+    this.keycloak.onAuthRefreshError = () => { this.sesionIniciada.set(false); this.esDocente.set(false); };
     this.keycloak.onTokenExpired = () => { void this.token().catch(() => {}); };
     try {
       const autenticado = await this.keycloak.init({
@@ -25,6 +28,7 @@ export class AuthService {
         redirectUri: window.location.origin + '/',
       });
       this.sesionIniciada.set(autenticado);
+      this.actualizarRol();
       const perfil = this.keycloak.tokenParsed;
       this.usuario.set(String(perfil?.['name'] ?? perfil?.['preferred_username'] ?? 'Usuario'));
     } catch {
@@ -58,15 +62,20 @@ export class AuthService {
     } catch {
       this.keycloak.clearToken();
       this.sesionIniciada.set(false);
+      this.esDocente.set(false);
       this.error.set('Tu sesion ha vencido. Inicia sesion nuevamente.');
       throw new Error('La sesion ha vencido.');
     }
+  }
+
+  private actualizarRol() {
+    this.esDocente.set(this.keycloak.authenticated === true && this.keycloak.hasRealmRole('docente'));
   }
 }
 
 // Solo adjuntar el access token a nuestro backend, nunca a otros destinos.
 export const jwtInterceptor: HttpInterceptorFn = (request, next) => {
-  if (!request.url.startsWith(appSettings.apiUrl + '/')) return next(request);
+  if (![appSettings.apiUrl, appSettings.procesoApiUrl].some(url => request.url.startsWith(url + '/'))) return next(request);
   return from(inject(AuthService).token()).pipe(
     switchMap(token => next(request.clone({ setHeaders: { Authorization: `Bearer ${token}` } }))),
   );

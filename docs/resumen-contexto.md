@@ -1,5 +1,19 @@
 # Resumen de contexto y continuidad
 
+Auditoría del 2026-11-16: [tabla de requisitos contra los dos PDF originales y el código](auditoria-requisitos.md). Se ejecutaron 14 pruebas Angular, 19 del planificador con C/JNA, 7 de proceso-service y 34 casos C; todas pasaron. Los pendientes se documentaron sin implementarlos: aceptación funcional formal, comparación conjunta, despliegue completo, referencia Java y mediciones de calidad. El usuario autorizó commit y push únicamente a origin/integracion de los avances revisados. No se modificaron datos, usuarios ni contraseñas durante esta auditoría.
+
+## Estado vigente: 2026-11-16 — Angular y conjuntos compartidos
+
+Ampliación posterior de esta etapa: cada conjunto admite `quantum` opcional positivo en OpenAPI, modelo JDBC y columna nullable `conjuntos.quantum`, añadida con ALTER TABLE IF NOT EXISTS sin reescribir filas antiguas. Angular guarda el valor configurado, lo restaura al cargar y usa 3 cuando no existe; sigue editable antes de ejecutar. No cambia C, Keycloak ni planificador-service. Pasaron 14 pruebas Angular, 7 de proceso-service y build. Ensayo real Edge/PostgreSQL: guardar 8, logout/login y recarga recuperan 8, estudiante carga y cambia a 5 para RR (también confirmado por SQL), conjunto antiguo sin quantum carga 3 y POST/DELETE estudiante siguen en 403. Datos anteriores intactos; solo se eliminó el conjunto nuevo del ensayo. Evidencia: `frontend/.angular/evidencias-quantum/verificacion.json`. Se reinició únicamente proceso-service para aplicar la columna; servicios e interfaz siguen activos. Sin commits ni pushes.
+
+Este bloque prevalece sobre los estados históricos inferiores. Se conservaron los cambios locales anteriores de roles y documentación; rama `integracion`, sin commits ni pushes.
+
+- La pantalla existente Conjuntos de Prueba consume los cuatro endpoints de proceso-service (8082). Sin bancos locales ficticios, edición de conjuntos ni fechas inventadas. Docente crea/elimina; cualquier usuario autenticado consulta/carga. La selección lleva a Configuración y envía procesos completos y `sourceSetId` real al planificador existente.
+- AuthService lee el rol de realm `docente` y lo actualiza al renovar el JWT. El interceptor limita Bearer a los dos backends configurados. Se añadió el mapper de audiencia `proceso-service` al cliente Angular existente y a la plantilla, conservando la audiencia del planificador y PKCE S256. `estudiante` sigue predeterminado; `docente` se asigna solo administrativamente. CORS existente suficiente, sin cambios en backend.
+- Build y 12 pruebas Angular exitosas. Edge/Playwright local con PostgreSQL, Keycloak y C reales: docente crea desde UI (201), persistencia SQL, recarga/logout, estudiante consulta (200) sin controles de escritura y con POST/DELETE 403 reales, cuatro algoritmos, sourceSetId, métricas RR, historial y eliminación docente desde UI (204). Snapshot SQL de conjuntos previos intacto; sin errores JavaScript. Persistencia probada por recarga y cambio de sesión; no por reinicio durante este ensayo.
+- Se conservaron cuentas técnicas nuevas y planificaciones de prueba. Solo se borraron bancos creados por estos ensayos. El conjunto original permanece. Ninguna cuenta o contraseña existente se modificó. El navegador integrado falló al conectarse; se usó Edge headless mediante Playwright local. Evidencia sin secretos en `frontend/.angular/evidencias-conjuntos/verificacion.json`.
+- Ambos microservicios y Angular quedaron ejecutándose (8081, 8082, 4200). README del frontend contiene comandos exactos para las terminales de IntelliJ y pasos manuales. OpenAPI, C y código de planificador-service sin cambios.
+
 ## Estado vigente: 2026-11-15 — proceso-service
 
 Este bloque prevalece sobre los estados históricos que siguen. Rama `integracion`, base `6198b6f` (integración Angular–Spring Boot). Sin commits ni pushes en esta etapa.

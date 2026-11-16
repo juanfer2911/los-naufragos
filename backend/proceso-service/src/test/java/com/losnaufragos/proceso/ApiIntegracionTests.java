@@ -123,7 +123,7 @@ class ApiIntegracionTests {
         int antes = jdbc.sql("SELECT count(*) FROM conjuntos").query(Integer.class).single();
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> servicio.crear("docente",
                 new ApiModelos.Solicitud("Rollback", null, List.of(new ApiModelos.Proceso(1, 0L, 1L, 0),
-                        new ApiModelos.Proceso(2, 0L, 0L, 0)))));
+                        new ApiModelos.Proceso(2, 0L, 0L, 0)), null)));
         assertEquals(antes, jdbc.sql("SELECT count(*) FROM conjuntos").query(Integer.class).single());
     }
 
@@ -136,6 +136,23 @@ class ApiIntegracionTests {
             assertEquals(401, respuesta.getStatusCode().value());
             assertEquals("UNAUTHORIZED", respuesta.getBody().path("code").asText());
         }
+    }
+
+    @Test void quantumOpcionalSePersisteYValida() throws Exception {
+        String entrada = ENTRADA.replace("\"name\":", "\"quantum\":8,\"name\":");
+        var creado = solicitar(HttpMethod.POST, "/conjuntos", token("docente"), entrada);
+        assertEquals(201, creado.getStatusCode().value());
+        String id = creado.getBody().path("conjuntoId").asText();
+        assertEquals(8, creado.getBody().path("quantum").asLong());
+        assertEquals(8L, jdbc.sql("SELECT quantum FROM conjuntos WHERE conjunto_id=?").param(id).query(Long.class).single());
+        assertEquals(creado.getBody(), solicitar(HttpMethod.GET, "/conjuntos/" + id, token("estudiante"), null).getBody());
+        assertTrue(solicitar(HttpMethod.GET, "/conjuntos", token("estudiante"), null).getBody().path("items").toString().contains(id));
+        for (String valor : List.of("0", "-1", "1.5", "9223372036854775808")) {
+            assertEquals(400, solicitar(HttpMethod.POST, "/conjuntos", token("docente"), entrada.replace("\"quantum\":8", "\"quantum\":" + valor)).getStatusCode().value());
+        }
+        assertEquals(403, solicitar(HttpMethod.POST, "/conjuntos", token("estudiante"), entrada).getStatusCode().value());
+        assertEquals(403, solicitar(HttpMethod.DELETE, "/conjuntos/" + id, token("estudiante"), null).getStatusCode().value());
+        assertEquals(204, solicitar(HttpMethod.DELETE, "/conjuntos/" + id, token("docente"), null).getStatusCode().value());
     }
 
     @Test void autenticadoSinRolesPuedeConsultar() throws Exception {

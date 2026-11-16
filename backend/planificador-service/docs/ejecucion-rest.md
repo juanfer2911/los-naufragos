@@ -31,6 +31,12 @@ PostgreSQL usa localhost:5432 y Keycloak localhost:8080. Ambos deben ser alcanza
 
 ## Keycloak
 
+En `planificador-realm`, `estudiante` es un rol predeterminado: las cuentas nuevas lo heredan mediante `default-roles-planificador-realm`. `docente` no pertenece a los roles predeterminados. La plantilla `dev/keycloak-realm.json` conserva ambos roles y esa composición para desplegar un realm nuevo; no reimportarla sobre el realm existente ni repetir su configuración manual.
+
+Para autorizar a un docente, un administrador debe abrir **Users → usuario → Role mapping → Assign role**, filtrar por roles del realm y asignar `docente`. Nunca añadir `docente` en **Realm settings → Default roles**. Después de asignarlo, obtener un access token nuevo. El usuario puede conservar también `estudiante`; el permiso de escritura depende de `docente`.
+
+Verificado el 2026-11-16 con una cuenta nueva sin asignaciones manuales de roles: heredó `estudiante`, sin `docente`, consultó conjuntos (200), ejecutó una planificación (201) y recuperó su historial (200). POST y DELETE de conjuntos devolvieron 403; el conjunto previo permaneció intacto. No se modificaron cuentas existentes ni contraseñas. Evidencia local sin secretos: `backend/proceso-service/target/verificacion-roles-default.json`. La plantilla se validó como JSON y se contrastó con los roles reales; no se reimportó el realm de trabajo.
+
 En desarrollo local se habilita **Realm settings → Login → User registration** para `planificador-realm` (`registrationAllowed: true` en la plantilla local). El enlace **Register / Registrarse** aparece en el formulario de Keycloak tras pulsar **Acceder con Keycloak** en Angular. No se habilitó registro en ningún entorno externo ni se modificó la validación JWT. Una cuenta registrada desde ese formulario pudo iniciar sesión, consultar el catálogo, guardar una planificación y recuperar su historial independiente; consultar una planificación ajena devolvió 404.
 
 En `http://localhost:8080`, iniciar la consola administrativa con las credenciales de `infra/.env`.
