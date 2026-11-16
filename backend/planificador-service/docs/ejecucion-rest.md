@@ -70,6 +70,7 @@ Copiar `.env.example` de este microservicio a `.env` solo si no existe, editarlo
 | `KEYCLOAK_JWK_SET_URI` | URL del realm terminada en `/protocol/openid-connect/certs` |
 | `KEYCLOAK_AUDIENCE` | `planificador-service` |
 | `PLANIFICADOR_BIBLIOTECA` | Ruta Linux absoluta de `native/libplanificador.so` |
+| `PLANIFICADOR_MOTOR` | `nativo` (predeterminado) o `java` para la implementación de referencia |
 | `FRONTEND_ORIGINS` | `http://localhost:4200`; varios orígenes explícitos separados por coma |
 
 Desde la raíz, con JDK 21 y Maven Linux configurados según el README:

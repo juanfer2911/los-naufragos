@@ -13,6 +13,8 @@ Las referencias P/N indican página del PDF, contando desde la portada. No se su
 
 **Cumplido:** implementación y pruebas sustentan la obligación descrita. **Parcial:** existe parte, pero falta comportamiento o alguna evidencia exigida. **Pendiente:** no se encontró implementación/entregable. **Por verificar:** no puede concluirse mediante código y pruebas disponibles, por ejemplo una demostración ante el docente. No se equipara una prueba local con una aceptación formal o con un despliegue limpio.
 
+**Alcance temporal:** esta auditoría es la fotografía de la base `c63536a`; no incorpora el trabajo posterior de Swarm completo, motor Java, bancos de medición en contenedor ni el ajuste de vida del token. Para el estado vigente de esos frentes, consulta [ADD](arquitectura-add.md), [resumen de continuidad](resumen-contexto.md) y [evidencias de seguridad/usabilidad](evidencias-seguridad-usabilidad.md). Las observaciones de requisito que dependen del docente o de participantes siguen abiertas hasta obtener evidencia.
+
 Abreviaturas de evidencia (rutas relativas a la raíz del repositorio):
 
 - **UI:** `frontend/src/app/app.ts` y `app.html`; **AUTH:** `frontend/src/app/auth.service.ts`.

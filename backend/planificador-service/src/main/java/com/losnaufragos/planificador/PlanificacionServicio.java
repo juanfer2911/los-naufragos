@@ -9,13 +9,15 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 import static com.losnaufragos.planificador.ApiModelos.*;
+import com.losnaufragos.planificador.nativo.MotorPlanificacion;
+import com.losnaufragos.planificador.nativo.PlanificadorJava;
 
 @Service
 public class PlanificacionServicio {
-    private final ObjectProvider<PlanificadorNativo> motor;
+    private final ObjectProvider<MotorPlanificacion> motor;
     private final PlanificacionRepositorio repositorio;
 
-    public PlanificacionServicio(ObjectProvider<PlanificadorNativo> motor, PlanificacionRepositorio repositorio) {
+    public PlanificacionServicio(ObjectProvider<MotorPlanificacion> motor, PlanificacionRepositorio repositorio) {
         this.motor = motor;
         this.repositorio = repositorio;
     }
@@ -23,9 +25,16 @@ public class PlanificacionServicio {
     @Configuration
     static class ConfiguracionNativa {
         @Bean @Lazy
-        PlanificadorNativo motor(@Value("${planificador.biblioteca}") String ruta) {
-            if (ruta.isBlank()) throw new IllegalStateException("Configure PLANIFICADOR_BIBLIOTECA con la ruta Linux absoluta.");
-            return new PlanificadorNativo(Path.of(ruta));
+        MotorPlanificacion motor(@Value("${planificador.motor:nativo}") String seleccionado,
+                                 @Value("${planificador.biblioteca:}") String ruta) {
+            return switch (seleccionado.trim().toLowerCase(Locale.ROOT)) {
+                case "java" -> new PlanificadorJava();
+                case "nativo" -> {
+                    if (ruta.isBlank()) throw new IllegalStateException("Configure PLANIFICADOR_BIBLIOTECA con la ruta Linux absoluta.");
+                    yield new PlanificadorNativo(Path.of(ruta));
+                }
+                default -> throw new IllegalStateException("PLANIFICADOR_MOTOR debe ser 'nativo' o 'java'.");
+            };
         }
     }
 
@@ -34,8 +43,8 @@ public class PlanificacionServicio {
     }
 
     public Planificacion ejecutar(String propietario, Solicitud solicitud) {
-        var nativo = motor.getObject();
-        var algoritmo = nativo.listarAlgoritmos().stream().filter(a -> a.id().equals(solicitud.algorithmId()))
+        var planificador = motor.getObject();
+        var algoritmo = planificador.listarAlgoritmos().stream().filter(a -> a.id().equals(solicitud.algorithmId()))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("algorithmId no disponible en el catalogo."));
         if (algoritmo.requiereQuantum() && solicitud.quantum() == null) {
             throw new IllegalArgumentException("quantum es obligatorio para el algoritmo seleccionado.");
@@ -46,7 +55,7 @@ public class PlanificacionServicio {
         }
         var procesos = solicitud.processes().stream().map(p ->
                 new PlanificadorNativo.Proceso(p.pid(), p.arrivalTime(), p.burstTime(), p.priority())).toList();
-        var resultado = nativo.ejecutar(solicitud.algorithmId(), procesos,
+        var resultado = planificador.ejecutar(solicitud.algorithmId(), procesos,
                 solicitud.quantum() == null ? 0 : solicitud.quantum());
         var segmentos = resultado.segmentos().stream().map(s ->
                 new Segmento(s.ocioso() ? "idle" : "execution", s.ocioso() ? null : s.procesoId(), s.inicio(), s.fin())).toList();

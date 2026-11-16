@@ -1,6 +1,7 @@
 {
   "realm": "planificador-realm",
   "enabled": true,
+  "accessTokenLifespan": 60,
   "registrationAllowed": true,
   "defaultRole": {
     "name": "default-roles-planificador-realm"
@@ -13,7 +14,7 @@
         "name": "default-roles-planificador-realm",
         "composite": true,
         "composites": {
-          "realm": ["offline_access", "uma_authorization", "estudiante"]
+          "realm": ["estudiante"]
         }
       }
     ]

@@ -2,7 +2,7 @@
 
 ## Estado vigente — plan académico de diez etapas
 
-Este bloque es la referencia actual para ambos integrantes y prevalece sobre los registros históricos que siguen. Rama de trabajo: `integracion`. La integración Angular–Spring Boot, los conjuntos compartidos, roles, historial y quantum persistente ya estaban respaldados en `aa6084a` en `origin/integracion`. Esta consolidación conserva esos avances, incorpora la etapa 1 y no desarrolla las etapas 2–10.
+Este bloque es la referencia actual para ambos integrantes y prevalece sobre los registros históricos que siguen. Rama de trabajo: `integracion`. La integración Angular–Spring Boot, los conjuntos compartidos, roles, historial y quantum persistente ya estaban respaldados en `aa6084a` en `origin/integracion`. Actualización 2026-11-16: se añadieron la comparación conjunta, el motor Java de referencia y ambos bancos de medición. Los controles académicos manuales restantes se dejan pendientes por decisión del usuario.
 
 ### Documentos académicos obligatorios
 
@@ -36,14 +36,22 @@ Ejemplo obligatorio SRTF: P1 `(llegada=0, ráfaga=4, prioridad=3)` y P2 `(2,2,1)
 | 2. Controles independientes | PENDIENTE | Seis conjuntos con cálculos independientes: llegadas simultáneas, ráfagas iguales, CPU ociosa, quantum mayor que la ráfaga máxima, un solo proceso y prioridades repetidas |
 | 3. Pruebas de exactitud | PARCIAL | Hay pruebas C y Java/JNA; falta integrar los seis controles completos con Gantt, métricas y promedios independientes |
 | 4. Validaciones | PARCIAL | Mejorar mensajes específicos por campo en Angular y backend, sin retornos silenciosos |
-| 5. Comparación y Gantt | PARCIAL | Mostrar juntos los cuatro algoritmos con los tres promedios, ganadores y empates; verificar Gantt a 1366 píxeles |
-| 6. Evidencias funcionales y seguridad | PARCIAL | Completar persistencia tras reiniciar contenedores, JWT/roles, expiración/logout y tres sesiones de usabilidad |
-| 7. Referencia Java | PENDIENTE | Implementar los cuatro algoritmos equivalentes a C y selección por configuración |
-| 8. Banco de medición | PENDIENTE | Cargas reproducibles, tamaños/repeticiones exigidos por cada PDF y datos crudos de C/JNA frente a Java; acordar calentamiento |
-| 9. Despliegue Docker Swarm | PARCIAL | Existe Compose local de PostgreSQL/Keycloak; faltan Dockerfiles multietapa, stack integral, límites, Keycloak reproducible y arranque con un comando |
-| 10. Mediciones y entrega | PENDIENTE | Mediciones definitivas en contenedores, tamaño/arranque de imágenes, ADD, bitácora, anexos y sustentación |
+| 5. Comparación y Gantt | PARCIAL | Comparación 4×3 con ganadores y empates implementada; falta verificar Gantt a 1366 píxeles |
+| 6. Evidencias funcionales y seguridad | PARCIAL | Evidencia de código JWT/roles, token de 60 s y rechazo anónimo registrada; faltan recorridos con token válido/expirado, persistencia tras reinicio y tres sesiones de usabilidad |
+| 7. Referencia Java | COMPLETADA | Los cuatro algoritmos están implementados; selección con `PLANIFICADOR_MOTOR=java`; coincidencia completa con C/JNA en los dos bancos locales |
+| 8. Banco de medición | COMPLETADA | Bancos Web 2 y Arquitectura repetidos en contenedor con 0,75 CPU y 768 MiB; 970 comparaciones exactas. CSV, medianas y recursos verificados en `tests/benchmarks/resultados/` |
+| 9. Despliegue Docker Swarm | COMPLETADA | Stack levantado desde volumen Swarm nuevo: cinco servicios 1/1; creadas las tres bases, importado el realm y comprobados Angular (200), OIDC (200) y APIs protegidas (401 sin sesión). Imágenes, secretos Docker, límites de recursos y scripts de inicio/detención incluidos |
+| 10. Mediciones y entrega | PARCIAL | Medición del motor y de la imagen del planificador en contenedor completada; falta medir imágenes restantes/arranque del stack completo, anexos y sustentación |
 
 El **quinto algoritmo** se reserva para la demostración en vivo de modificabilidad (Planificador RQ-01 y Núcleo RN-06). Se puede preparar el razonamiento en papel; no implementarlo anticipadamente ni guardar una rama lista para fusionar. Las mediciones académicas definitivas de Arquitectura se harán después de disponer de contenedores con límites declarados. No mezclar su protocolo de SRTF/10.000 procesos con el de Web 2 (cuatro tamaños y 30 repeticiones).
+
+### Avance 2026-11-16 — motor Java y mediciones locales
+
+- Se añadió `PlanificadorJava` con FCFS, SJF, SRTF y RR, usando las reglas de la etapa 1. `PLANIFICADOR_MOTOR=nativo` conserva C/JNA por defecto; `java` selecciona la referencia sin cargar la biblioteca C. No se modificó el esquema de PostgreSQL.
+- C optimiza SJF y SRTF con colas de prioridad, evitando el barrido cuadrático de candidatos. La suite nativa pasó **42 grupos**; los bancos también compararon segmentos y métricas completos.
+- Web 2 ejecutó 50, 500, 5.000 y 50.000 procesos, 30 repeticiones por algoritmo y motor (**960 filas crudas**). Arquitectura ejecutó SRTF con 10.000 procesos, cinco veces; las primeras tres están marcadas como calentamiento y las dos últimas se usan para medianas (**10 filas crudas**). Hubo **cero diferencias**.
+- Medianas de Arquitectura: C/JNA **67,5 ms**, Java **19,9 ms**. A 50.000 procesos en Web 2, las medianas C/JNA/Java fueron: FCFS **353,0/58,1 ms**, SJF **447,7/101,7 ms**, SRTF **417,1/85,6 ms**, RR **1.291,0/48,4 ms**. Java fue más rápido en todos los tamaños medidos; no se observó punto de cruce entre 50 y 50.000 procesos.
+- Las mediciones se tomaron en WSL 2/Ubuntu 26.04 sobre Intel Core i9-13900H, con la JVM Linux predeterminada y sin límites de CPU/memoria de contenedor. Sirven como evidencia local, no como aceptación final de rendimiento bajo Swarm. Los resultados crudos y scripts están en `tests/benchmarks/`.
 
 ### Asuntos que deben confirmarse con el profesor
 

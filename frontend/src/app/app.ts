@@ -44,7 +44,7 @@ export class App implements OnInit {
   readonly auth = inject(AuthService);
   private readonly api = inject(PlanificadorApi);
   private readonly conjuntosApi = inject(ProcesoApi);
-  vistaActual = signal<'inicio' | 'configuracion' | 'resultados' | 'conjuntos' | 'historial'>('inicio');
+  vistaActual = signal<'configuracion' | 'resultados' | 'conjuntos' | 'historial'>('configuracion');
   sesionIniciada = this.auth.sesionIniciada;
   usuario = this.auth.usuario;
   correo = '';
@@ -93,6 +93,32 @@ export class App implements OnInit {
     const resultados = Object.values(this.resultados()).map(r => ({ algoritmo: r.algorithmId, espera: r.averages.waitingTime }));
     return resultados.sort((a, b) => a.espera - b.espera)[0] ?? null;
   });
+  comparacionPromedios = computed(() => this.algoritmosDisponibles()
+    .map(({ id }) => this.resultados()[id])
+    .filter((resultado): resultado is Planificacion => resultado !== undefined)
+    .map(resultado => ({
+      id: resultado.algorithmId,
+      espera: resultado.averages.waitingTime,
+      retorno: resultado.averages.turnaroundTime,
+      respuesta: resultado.averages.responseTime,
+    })));
+  ganadoresComparacion = computed(() => {
+    const filas = this.comparacionPromedios();
+    const ganador = (metrica: 'espera' | 'retorno' | 'respuesta') => {
+      if (!filas.length) return [];
+      const minimo = Math.min(...filas.map(fila => fila[metrica]));
+      return filas.filter(fila => fila[metrica] === minimo).map(fila => fila.id);
+    };
+    return { espera: ganador('espera'), retorno: ganador('retorno'), respuesta: ganador('respuesta') };
+  });
+  nombresGanadoresComparacion = computed(() => {
+    const ganadores = this.ganadoresComparacion();
+    return {
+      espera: ganadores.espera.map(id => this.nombreAlgoritmo(id)).join(', '),
+      retorno: ganadores.retorno.map(id => this.nombreAlgoritmo(id)).join(', '),
+      respuesta: ganadores.respuesta.map(id => this.nombreAlgoritmo(id)).join(', '),
+    };
+  });
 
   ngOnInit() { if (this.sesionIniciada()) void this.cargarDatos(); }
 
@@ -110,7 +136,7 @@ export class App implements OnInit {
     finally { this.cargando.set(false); }
   }
 
-  cambiarVista(nuevaVista: 'inicio' | 'configuracion' | 'resultados' | 'conjuntos' | 'historial') {
+  cambiarVista(nuevaVista: 'configuracion' | 'resultados' | 'conjuntos' | 'historial') {
     this.vistaActual.set(nuevaVista);
     if (nuevaVista === 'historial') void this.cargarHistorial();
     if (nuevaVista === 'conjuntos' || nuevaVista === 'configuracion') void this.cargarConjuntos();

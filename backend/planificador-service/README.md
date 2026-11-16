@@ -64,6 +64,10 @@ Importa `com.losnaufragos.planificador.nativo.PlanificadorNativo` y `java.util.L
 
 `PlanificadorBiblioteca` mapea estructuras y funciones. `PlanificadorNativo` escribe procesos contiguos, sondea cantidades, reserva buffers y devuelve listas inmutables de segmentos y métricas. Traduce estados 1–5 a mensajes comprensibles; no recalcula la planificación. Los tiempos son `long` Java y los contadores `int`. Las tres estructuras originales ocupan 32 bytes.
 
+La implementación Java de referencia está disponible mediante `PLANIFICADOR_MOTOR=java`; el valor predeterminado es `nativo`, que conserva C/JNA como motor de ejecución normal. La referencia implementa FCFS, SJF, SRTF y RR con las reglas de `native/README.md` y produce el mismo modelo de segmentos y métricas. En modo Java no se carga la biblioteca compartida. Reinicia el servicio para cambiar el motor. Las corridas siguen guardándose en PostgreSQL igual que con el motor nativo.
+
+Los protocolos independientes de medición C/JNA frente a Java están en [`tests/benchmarks/`](../../tests/benchmarks/README.md). Usan las clases de motor directamente, no levantan el backend y no escriben en la base de datos. Cada repetición exige igualdad de resultados antes de guardar los CSV crudos y sus medianas.
+
 `listar_algoritmos()` devuelve memoria estática de solo lectura del catálogo C: id ASCII de 16 bytes, nombre de 64 y un entero de 32 bits `requiere_quantum` (84 bytes en total). Java copia el contenido a sus propios registros, sin liberar memoria C ni mantener un catálogo independiente. `GET /algoritmos` expone únicamente los identificadores, como define OpenAPI.
 
 Los segmentos ociosos se identifican por `ocioso`, no por su PID: C devuelve actualmente PID 0 para esos intervalos.

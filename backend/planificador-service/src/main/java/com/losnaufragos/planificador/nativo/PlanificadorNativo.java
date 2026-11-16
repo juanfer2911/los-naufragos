@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class PlanificadorNativo {
+public final class PlanificadorNativo implements MotorPlanificacion {
     public record Proceso(int id, long llegada, long rafaga, int prioridad) { }
     public record Segmento(int procesoId, long inicio, long fin, boolean ocioso) { }
     public record Metrica(int procesoId, long espera, long retorno, long respuesta) { }

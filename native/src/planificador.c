@@ -280,6 +280,40 @@ static int es_preferible_sjf(
     return candidato->indice_original < actual->indice_original;
 }
 
+static void insertar_heap_sjf(
+    size_t *heap, size_t *cantidad_heap, size_t indice,
+    const proceso_sjf_t *planificacion)
+{
+    size_t posicion = (*cantidad_heap)++;
+    while (posicion > 0) {
+        size_t padre = (posicion - 1) / 2;
+        if (!es_preferible_sjf(&planificacion[indice], &planificacion[heap[padre]])) break;
+        heap[posicion] = heap[padre];
+        posicion = padre;
+    }
+    heap[posicion] = indice;
+}
+
+static size_t extraer_heap_sjf(
+    size_t *heap, size_t *cantidad_heap, const proceso_sjf_t *planificacion)
+{
+    size_t elegido = heap[0];
+    size_t ultimo = heap[--(*cantidad_heap)];
+    if (*cantidad_heap == 0) return elegido;
+    size_t posicion = 0;
+    for (;;) {
+        size_t hijo = posicion * 2 + 1;
+        if (hijo >= *cantidad_heap) break;
+        if (hijo + 1 < *cantidad_heap
+            && es_preferible_sjf(&planificacion[heap[hijo + 1]], &planificacion[heap[hijo]])) hijo++;
+        if (!es_preferible_sjf(&planificacion[heap[hijo]], &planificacion[ultimo])) break;
+        heap[posicion] = heap[hijo];
+        posicion = hijo;
+    }
+    heap[posicion] = ultimo;
+    return elegido;
+}
+
 planificador_estado_t planificador_sjf(
     const proceso_t *procesos,
     size_t cantidad,
@@ -290,6 +324,9 @@ planificador_estado_t planificador_sjf(
     size_t capacidad_metricas)
 {
     proceso_sjf_t *planificacion;
+    proceso_ordenado_fcfs_t *orden_llegadas = NULL;
+    size_t *heap = NULL;
+    size_t *orden_ejecucion = NULL;
     size_t total_segmentos = 0;
     int64_t reloj_cpu = 0;
     planificador_estado_t estado = PLANIFICADOR_OK;
@@ -305,6 +342,11 @@ planificador_estado_t planificador_sjf(
     if (cantidad > SIZE_MAX / sizeof(*planificacion)) {
         return PLANIFICADOR_MEMORIA_INSUFICIENTE;
     }
+    if (cantidad > SIZE_MAX / sizeof(*orden_llegadas)
+        || cantidad > SIZE_MAX / sizeof(*heap)
+        || cantidad > SIZE_MAX / sizeof(*orden_ejecucion)) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
 
     for (size_t i = 0; i < cantidad; i++) {
         if (procesos[i].llegada < 0 || procesos[i].rafaga <= 0) {
@@ -313,7 +355,14 @@ planificador_estado_t planificador_sjf(
     }
 
     planificacion = malloc(cantidad * sizeof(*planificacion));
-    if (planificacion == NULL) {
+    orden_llegadas = malloc(cantidad * sizeof(*orden_llegadas));
+    heap = malloc(cantidad * sizeof(*heap));
+    orden_ejecucion = malloc(cantidad * sizeof(*orden_ejecucion));
+    if (planificacion == NULL || orden_llegadas == NULL || heap == NULL || orden_ejecucion == NULL) {
+        free(planificacion);
+        free(orden_llegadas);
+        free(heap);
+        free(orden_ejecucion);
         return PLANIFICADOR_MEMORIA_INSUFICIENTE;
     }
 
@@ -326,63 +375,49 @@ planificador_estado_t planificador_sjf(
             .inicio = 0,
             .fin = 0
         };
+        orden_llegadas[i] = (proceso_ordenado_fcfs_t) {
+            .indice_original = i,
+            .llegada = procesos[i].llegada,
+            .prioridad = procesos[i].prioridad
+        };
     }
+    qsort(orden_llegadas, cantidad, sizeof(*orden_llegadas), comparar_procesos_fcfs);
 
-    /* Calcula primero el plan para no dejar resultados parciales. */
-    size_t turno = 0;
+    /* Lista ordenada por llegada y heap de procesos ya disponibles. */
+    size_t siguiente_llegada = 0, cantidad_heap = 0, turno = 0;
     while (turno < cantidad) {
-        size_t indice_elegido = cantidad;
-
-        for (size_t i = turno; i < cantidad; i++) {
-            if (planificacion[i].llegada <= reloj_cpu
-                && (indice_elegido == cantidad
-                    || es_preferible_sjf(
-                        &planificacion[i],
-                        &planificacion[indice_elegido]))) {
-                indice_elegido = i;
-            }
+        while (siguiente_llegada < cantidad
+            && orden_llegadas[siguiente_llegada].llegada <= reloj_cpu) {
+            insertar_heap_sjf(heap, &cantidad_heap,
+                orden_llegadas[siguiente_llegada].indice_original, planificacion);
+            siguiente_llegada++;
         }
-
-        if (indice_elegido == cantidad) {
-            size_t indice_proxima_llegada = turno;
-            for (size_t i = turno + 1; i < cantidad; i++) {
-                if (planificacion[i].llegada
-                    < planificacion[indice_proxima_llegada].llegada) {
-                    indice_proxima_llegada = i;
-                }
-            }
-
+        if (cantidad_heap == 0) {
+            int64_t proxima_llegada = orden_llegadas[siguiente_llegada].llegada;
             if (total_segmentos == SIZE_MAX) {
                 estado = PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
                 goto liberar_planificacion;
             }
             total_segmentos++;
-            reloj_cpu = planificacion[indice_proxima_llegada].llegada;
+            reloj_cpu = proxima_llegada;
             continue;
         }
-
-        if (indice_elegido != turno) {
-            proceso_sjf_t temporal = planificacion[turno];
-            planificacion[turno] = planificacion[indice_elegido];
-            planificacion[indice_elegido] = temporal;
-        }
-
+        size_t indice_elegido = extraer_heap_sjf(heap, &cantidad_heap, planificacion);
         if (total_segmentos == SIZE_MAX) {
             estado = PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
             goto liberar_planificacion;
         }
         total_segmentos++;
-
-        planificacion[turno].inicio = reloj_cpu;
+        orden_ejecucion[turno++] = indice_elegido;
+        planificacion[indice_elegido].inicio = reloj_cpu;
         estado = sumar_tiempo_seguro(
             reloj_cpu,
-            planificacion[turno].rafaga,
-            &planificacion[turno].fin);
+            planificacion[indice_elegido].rafaga,
+            &planificacion[indice_elegido].fin);
         if (estado != PLANIFICADOR_OK) {
             goto liberar_planificacion;
         }
-        reloj_cpu = planificacion[turno].fin;
-        turno++;
+        reloj_cpu = planificacion[indice_elegido].fin;
     }
 
     *cantidad_segmentos = total_segmentos;
@@ -396,7 +431,7 @@ planificador_estado_t planificador_sjf(
     size_t indice_siguiente_segmento = 0;
     reloj_cpu = 0;
     for (size_t turno = 0; turno < cantidad; turno++) {
-        const proceso_sjf_t *proceso_planificado = &planificacion[turno];
+        const proceso_sjf_t *proceso_planificado = &planificacion[orden_ejecucion[turno]];
         const proceso_t *proceso =
             &procesos[proceso_planificado->indice_original];
 
@@ -425,6 +460,9 @@ planificador_estado_t planificador_sjf(
 
 liberar_planificacion:
     free(planificacion);
+    free(orden_llegadas);
+    free(heap);
+    free(orden_ejecucion);
     return estado;
 }
 
@@ -439,6 +477,11 @@ typedef struct {
     int64_t primer_inicio;
     int64_t finalizacion;
 } proceso_srtf_t;
+
+typedef struct {
+    int64_t llegada;
+    size_t indice_original;
+} llegada_srtf_t;
 
 /*
  * Cuando no se conserva el proceso actual, los empates se resuelven por
@@ -460,34 +503,55 @@ static int es_preferible_srtf(
     return candidato->indice_original < actual->indice_original;
 }
 
-static size_t seleccionar_proceso_srtf(
-    const proceso_srtf_t *planificacion,
-    size_t cantidad,
-    int64_t reloj_cpu,
-    size_t proceso_actual)
+static int comparar_llegadas_srtf(const void *izquierda, const void *derecha)
 {
-    size_t indice_elegido = cantidad;
+    const llegada_srtf_t *a = izquierda;
+    const llegada_srtf_t *b = derecha;
+    if (a->llegada < b->llegada) return -1;
+    if (a->llegada > b->llegada) return 1;
+    if (a->indice_original < b->indice_original) return -1;
+    if (a->indice_original > b->indice_original) return 1;
+    return 0;
+}
 
-    for (size_t i = 0; i < cantidad; i++) {
-        if (planificacion[i].restante > 0
-            && planificacion[i].llegada <= reloj_cpu
-            && (indice_elegido == cantidad
-                || es_preferible_srtf(
-                    &planificacion[i],
-                    &planificacion[indice_elegido]))) {
-            indice_elegido = i;
+static void insertar_heap_srtf(
+    size_t *heap,
+    size_t *cantidad_heap,
+    size_t indice,
+    const proceso_srtf_t *planificacion)
+{
+    size_t posicion = (*cantidad_heap)++;
+    while (posicion > 0) {
+        size_t padre = (posicion - 1) / 2;
+        if (!es_preferible_srtf(&planificacion[indice], &planificacion[heap[padre]])) break;
+        heap[posicion] = heap[padre];
+        posicion = padre;
+    }
+    heap[posicion] = indice;
+}
+
+static size_t extraer_heap_srtf(
+    size_t *heap,
+    size_t *cantidad_heap,
+    const proceso_srtf_t *planificacion)
+{
+    size_t elegido = heap[0];
+    size_t ultimo = heap[--(*cantidad_heap)];
+    if (*cantidad_heap == 0) return elegido;
+    size_t posicion = 0;
+    for (;;) {
+        size_t hijo = posicion * 2 + 1;
+        if (hijo >= *cantidad_heap) break;
+        if (hijo + 1 < *cantidad_heap
+            && es_preferible_srtf(&planificacion[heap[hijo + 1]], &planificacion[heap[hijo]])) {
+            hijo++;
         }
+        if (!es_preferible_srtf(&planificacion[heap[hijo]], &planificacion[ultimo])) break;
+        heap[posicion] = heap[hijo];
+        posicion = hijo;
     }
-
-    if (proceso_actual < cantidad
-        && planificacion[proceso_actual].restante > 0
-        && planificacion[proceso_actual].llegada <= reloj_cpu
-        && indice_elegido < cantidad
-        && planificacion[proceso_actual].restante
-           == planificacion[indice_elegido].restante) {
-        return proceso_actual;
-    }
-    return indice_elegido;
+    heap[posicion] = ultimo;
+    return elegido;
 }
 
 /* Simulación por eventos; nunca escribe directamente en buffers públicos. */
@@ -503,8 +567,25 @@ static planificador_estado_t simular_srtf(
     size_t total_segmentos = 0;
     size_t ultimo_indice_proceso = cantidad;
     size_t proceso_actual = cantidad;
+    size_t siguiente_llegada = 0;
+    size_t cantidad_heap = 0;
+    size_t *heap = NULL;
+    llegada_srtf_t *orden_llegadas = NULL;
     int ultimo_segmento_ocioso = 0;
     int64_t reloj_cpu = 0;
+
+    if (cantidad_segmentos == NULL) return PLANIFICADOR_ARGUMENTO_INVALIDO;
+    if (cantidad > SIZE_MAX / sizeof(*heap)
+        || cantidad > SIZE_MAX / sizeof(*orden_llegadas)) {
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
+    heap = malloc(cantidad * sizeof(*heap));
+    orden_llegadas = malloc(cantidad * sizeof(*orden_llegadas));
+    if (heap == NULL || orden_llegadas == NULL) {
+        free(heap);
+        free(orden_llegadas);
+        return PLANIFICADOR_MEMORIA_INSUFICIENTE;
+    }
 
     for (size_t i = 0; i < cantidad; i++) {
         planificacion[i] = (proceso_srtf_t) {
@@ -515,86 +596,84 @@ static planificador_estado_t simular_srtf(
             .primer_inicio = -1,
             .finalizacion = -1
         };
+        orden_llegadas[i] = (llegada_srtf_t) {
+            .llegada = procesos[i].llegada,
+            .indice_original = i
+        };
     }
+    qsort(orden_llegadas, cantidad, sizeof(*orden_llegadas), comparar_llegadas_srtf);
 
     while (terminados < cantidad) {
-        size_t elegido = seleccionar_proceso_srtf(
-            planificacion,
-            cantidad,
-            reloj_cpu,
-            proceso_actual);
-
-        if (elegido == cantidad) {
-            size_t indice_proxima_llegada = cantidad;
-            for (size_t i = 0; i < cantidad; i++) {
-                if (planificacion[i].restante > 0
-                    && planificacion[i].llegada > reloj_cpu
-                    && (indice_proxima_llegada == cantidad
-                        || planificacion[i].llegada
-                           < planificacion[indice_proxima_llegada].llegada)) {
-                    indice_proxima_llegada = i;
-                }
-            }
-            if (indice_proxima_llegada == cantidad) {
-                return PLANIFICADOR_ARGUMENTO_INVALIDO;
-            }
-
-            int64_t fin_ocio = planificacion[indice_proxima_llegada].llegada;
-            if (total_segmentos == SIZE_MAX) {
-                return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
-            }
-            if (segmentos_temporales != NULL) {
-                segmentos_temporales[total_segmentos] = (segmento_t) {
-                    .proceso_id = 0,
-                    .inicio = reloj_cpu,
-                    .fin = fin_ocio,
-                    .es_ocioso = 1
-                };
-            }
-            total_segmentos++;
-            ultimo_segmento_ocioso = 1;
-            ultimo_indice_proceso = cantidad;
-            reloj_cpu = fin_ocio;
-            proceso_actual = cantidad;
-            continue;
+        while (siguiente_llegada < cantidad
+            && orden_llegadas[siguiente_llegada].llegada <= reloj_cpu) {
+            insertar_heap_srtf(heap, &cantidad_heap,
+                orden_llegadas[siguiente_llegada].indice_original, planificacion);
+            siguiente_llegada++;
         }
 
+        if (proceso_actual == cantidad) {
+            if (cantidad_heap == 0) {
+                if (siguiente_llegada >= cantidad) {
+                    free(heap);
+                    free(orden_llegadas);
+                    return PLANIFICADOR_ARGUMENTO_INVALIDO;
+                }
+                int64_t fin_ocio = orden_llegadas[siguiente_llegada].llegada;
+                if (total_segmentos == SIZE_MAX) {
+                    free(heap);
+                    free(orden_llegadas);
+                    return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
+                }
+                if (segmentos_temporales != NULL) {
+                    segmentos_temporales[total_segmentos] = (segmento_t) {
+                        .proceso_id = 0,
+                        .inicio = reloj_cpu,
+                        .fin = fin_ocio,
+                        .es_ocioso = 1
+                    };
+                }
+                total_segmentos++;
+                ultimo_segmento_ocioso = 1;
+                ultimo_indice_proceso = cantidad;
+                reloj_cpu = fin_ocio;
+                continue;
+            }
+            proceso_actual = extraer_heap_srtf(heap, &cantidad_heap, planificacion);
+        } else if (cantidad_heap > 0
+            && planificacion[heap[0]].restante < planificacion[proceso_actual].restante) {
+            insertar_heap_srtf(heap, &cantidad_heap, proceso_actual, planificacion);
+            proceso_actual = extraer_heap_srtf(heap, &cantidad_heap, planificacion);
+        }
+
+        size_t elegido = proceso_actual;
         if (planificacion[elegido].primer_inicio < 0) {
             planificacion[elegido].primer_inicio = reloj_cpu;
         }
 
-        size_t indice_proxima_llegada = cantidad;
-        for (size_t i = 0; i < cantidad; i++) {
-            if (planificacion[i].restante > 0
-                && planificacion[i].llegada > reloj_cpu
-                && (indice_proxima_llegada == cantidad
-                    || planificacion[i].llegada
-                       < planificacion[indice_proxima_llegada].llegada)) {
-                indice_proxima_llegada = i;
-            }
-        }
-
+        int64_t llegada_siguiente = siguiente_llegada < cantidad
+            ? orden_llegadas[siguiente_llegada].llegada : INT64_MAX;
         int64_t fin_proceso;
         planificador_estado_t estado = sumar_tiempo_seguro(
             reloj_cpu,
             planificacion[elegido].restante,
             &fin_proceso);
-        if (estado != PLANIFICADOR_OK
-            && indice_proxima_llegada == cantidad) {
+        if (estado != PLANIFICADOR_OK && siguiente_llegada >= cantidad) {
+            free(heap);
+            free(orden_llegadas);
             return estado;
         }
 
         int64_t fin_intervalo;
-        if (estado != PLANIFICADOR_OK
-            || (indice_proxima_llegada < cantidad
-                && planificacion[indice_proxima_llegada].llegada < fin_proceso)) {
-            fin_intervalo = planificacion[indice_proxima_llegada].llegada;
+        if (estado != PLANIFICADOR_OK || llegada_siguiente < fin_proceso) {
+            fin_intervalo = llegada_siguiente;
         } else {
             fin_intervalo = fin_proceso;
         }
 
         int64_t duracion = fin_intervalo - reloj_cpu;
         if (duracion <= 0 || duracion > planificacion[elegido].restante) {
+            free(heap);
+            free(orden_llegadas);
             return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
         }
 
@@ -606,6 +685,8 @@ static planificador_estado_t simular_srtf(
             }
         } else {
             if (total_segmentos == SIZE_MAX) {
+                free(heap);
+                free(orden_llegadas);
                 return PLANIFICADOR_DESBORDAMIENTO_TIEMPO;
             }
             if (segmentos_temporales != NULL) {
@@ -627,8 +708,6 @@ static planificador_estado_t simular_srtf(
             planificacion[elegido].finalizacion = reloj_cpu;
             terminados++;
             proceso_actual = cantidad;
-        } else {
-            proceso_actual = elegido;
         }
     }
 
@@ -642,6 +721,8 @@ static planificador_estado_t simular_srtf(
         }
     }
     *cantidad_segmentos = total_segmentos;
+    free(heap);
+    free(orden_llegadas);
     return PLANIFICADOR_OK;
 }
 

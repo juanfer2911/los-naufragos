@@ -70,17 +70,18 @@
 .secondary-button { color: #17365a; border: 1px solid #cbd5e1; background: #fff; }
 .link-button { background: none; border: 0; color: #318eb6; cursor: pointer; padding: 4px; font: inherit; }
 .security-note { justify-self: center; align-self: center; margin-top: 30px; border-radius: 20px; padding: 9px 16px; background: #f0f5f8; color: #49647b; font-size: 12px; }
-.welcome-panel, .content-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; box-shadow: 0 2px 8px #0f172a0a; }
-.welcome-panel { min-height: 260px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; background: linear-gradient(120deg,#fff 55%,#e8f5fb); }
-.welcome-panel h2, .content-card h2 { margin: 0 0 10px; color: #0f2b48; }
-.welcome-panel p { color: #64748b; }
-.welcome-actions, .form-actions, .section-heading, .row-actions { display: flex; align-items: center; gap: 10px; }
+.content-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; box-shadow: 0 2px 8px #0f172a0a; }
+.content-card h2 { margin: 0 0 10px; color: #0f2b48; }
+.form-actions, .section-heading, .row-actions { display: flex; align-items: center; gap: 10px; }
 .section-heading { justify-content: space-between; margin-bottom: 18px; }
 .section-heading h2 { margin: 0; font-size: 18px; }
 .table-scroll { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: 13px; }
 .data-table th { background: #edf4f8; text-align: left; color: #31465b; }
 .data-table th, .data-table td { padding: 12px 10px; border-bottom: 1px solid #dbe5ed; }
+.comparison-winners { margin: 16px 0 0; color: #33465b; line-height: 1.8; }
+.comparison-winners strong { color: #0f2b48; }
+.data-table td strong[aria-label] { color: #15803d; padding-left: 4px; }
 .row-actions button { border: 0; border-radius: 5px; padding: 6px 9px; color: #fff; background: #3197c1; cursor: pointer; }
 .row-actions button:nth-child(2) { background: #fff; border: 1px solid #cbd5e1; color: #334155; }
 .row-actions .danger-link { background: transparent; color: #dc2626; }
@@ -116,6 +117,6 @@
   .main-content { padding: 20px 14px !important; }
   .configuration-layout { grid-template-columns: 1fr !important; }
   .results-layout { overflow-x: auto; }
-  .welcome-actions, .section-heading { align-items: stretch; flex-direction: column; }
+  .section-heading { align-items: stretch; flex-direction: column; }
   .content-card { padding: 16px; }
 }

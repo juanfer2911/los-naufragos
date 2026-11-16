@@ -33,7 +33,6 @@
     </div>
 
     <nav style="display: flex; flex-direction: column; gap: 8px;">
-      <button class="nav-btn" [class.active]="vistaActual() === 'inicio'" (click)="cambiarVista('inicio')">&#8962; Inicio</button>
       <button class="nav-btn" [class.active]="vistaActual() === 'configuracion'" (click)="cambiarVista('configuracion')">&#9881; Configuraci&oacute;n</button>
       <button class="nav-btn" [class.active]="vistaActual() === 'resultados'" (click)="cambiarVista('resultados')">&#9636; Resultados</button>
       <button class="nav-btn" [class.active]="vistaActual() === 'conjuntos'" (click)="cambiarVista('conjuntos')">&#128194; Conjuntos de Prueba</button>
@@ -49,13 +48,12 @@
       <div>
         <h1 style="font-size: 24px; color: #0f172a; margin: 0 0 4px 0; font-weight: 700;">
           <ng-container [ngSwitch]="vistaActual()">
-            <span *ngSwitchCase="'inicio'">Inicio</span><span *ngSwitchCase="'configuracion'">Configuraci&oacute;n de la Simulaci&oacute;n</span>
+            <span *ngSwitchCase="'configuracion'">Configuraci&oacute;n de la Simulaci&oacute;n</span>
             <span *ngSwitchCase="'resultados'">Resultados y Gr&aacute;ficas de Simulaci&oacute;n</span><span *ngSwitchCase="'conjuntos'">Gesti&oacute;n de Conjuntos de Prueba</span><span *ngSwitchCase="'historial'">Historial de Planificaciones</span>
           </ng-container>
         </h1>
         <p style="color: #64748b; font-size: 14px; margin: 0;">
           <ng-container [ngSwitch]="vistaActual()">
-            <span *ngSwitchCase="'inicio'">Configure procesos, ejecute algoritmos y compare sus resultados.</span>
             <span *ngSwitchCase="'configuracion'">Ingrese los procesos y seleccione los algoritmos que desea comparar.</span>
             <span *ngSwitchCase="'resultados'">Visualice el Gantt, compare m&eacute;tricas de retorno, espera y respuesta.</span>
             <span *ngSwitchCase="'conjuntos'">Consulte y cargue conjuntos compartidos para sus simulaciones.</span>
@@ -79,12 +77,7 @@
       <button class="secondary-button" (click)="cargarDatos()" [disabled]="cargando()">Reintentar</button>
     </div>
 
-    <!-- VISTA 1: CONFIGURACI&Oacute;N -->
-    <section *ngIf="vistaActual() === 'inicio'" class="welcome-panel">
-      <h2>Bienvenido al simulador de procesos</h2><p>Comience configurando una carga de procesos o abra uno de sus conjuntos guardados.</p>
-      <div class="welcome-actions"><button class="primary-button" (click)="cambiarVista('configuracion')">Configurar simulaci&oacute;n</button><button class="secondary-button" (click)="cambiarVista('conjuntos')">Ver conjuntos de prueba</button></div>
-    </section>
-
+    <!-- CONFIGURACI&Oacute;N -->
     <div *ngIf="vistaActual() === 'configuracion'" class="configuration-layout" style="display: grid; grid-template-columns: 1fr 300px; gap: 24px;">
       <div style="display: flex; flex-direction: column; gap: 24px;">
 
@@ -173,6 +166,27 @@
         </button>
       </div>
       <p *ngIf="algoritmosActivos().length === 0" class="empty-state">Seleccione al menos un algoritmo en Configuraci&oacute;n.</p>
+
+      <section *ngIf="comparacionPromedios().length > 1" class="content-card" aria-label="Comparación de promedios de algoritmos">
+        <h2>Comparaci&oacute;n de promedios</h2>
+        <p>Todos los algoritmos se ejecutaron con la misma carga de procesos. Menor promedio es mejor; los empates se muestran juntos.</p>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Algoritmo</th><th>Espera promedio</th><th>Retorno promedio</th><th>Respuesta promedio</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let fila of comparacionPromedios()">
+                <th scope="row">{{ nombreAlgoritmo(fila.id) }}</th>
+                <td>{{ fila.espera | number:'1.1-2' }} ms <strong *ngIf="ganadoresComparacion().espera.includes(fila.id)" aria-label="Mejor resultado en espera">&#9733;</strong></td>
+                <td>{{ fila.retorno | number:'1.1-2' }} ms <strong *ngIf="ganadoresComparacion().retorno.includes(fila.id)" aria-label="Mejor resultado en retorno">&#9733;</strong></td>
+                <td>{{ fila.respuesta | number:'1.1-2' }} ms <strong *ngIf="ganadoresComparacion().respuesta.includes(fila.id)" aria-label="Mejor resultado en respuesta">&#9733;</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="comparison-winners"><strong>Menor espera:</strong> {{ nombresGanadoresComparacion().espera }}
+          <span aria-hidden="true"> · </span><strong>Menor retorno:</strong> {{ nombresGanadoresComparacion().retorno }}
+          <span aria-hidden="true"> · </span><strong>Menor respuesta:</strong> {{ nombresGanadoresComparacion().respuesta }}</p>
+      </section>
 
       <!-- TARJETA DIAGRAMA DE GANTT -->
       <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">

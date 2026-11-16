@@ -1,0 +1,131 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: naufragos-postgres:local
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:?Configura infra/.env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+      POSTGRES_DB: postgres
+    secrets:
+      - postgres_admin_password
+      - keycloak_db_password
+      - proceso_db_password
+      - planificador_db_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [app]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "0.50", memory: 512M }
+      restart_policy: { condition: on-failure }
+
+  keycloak:
+    image: naufragos-keycloak:local
+    command: ["start", "--optimized", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: "5432"
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak_user
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    secrets:
+      - keycloak_admin_username
+      - keycloak_admin_password
+      - keycloak_db_password
+    ports:
+      - "8080:8080"
+    networks: [app]
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "0.75", memory: 1G }
+      restart_policy: { condition: on-failure }
+
+  proceso-service:
+    image: naufragos-proceso:local
+    environment:
+      SERVER_PORT: "8082"
+      PROCESO_DB_URL: jdbc:postgresql://postgres:5432/proceso_db
+      PROCESO_DB_USER: proceso_user
+      KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/planificador-realm
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/planificador-realm/protocol/openid-connect/certs
+      FRONTEND_ORIGINS: http://localhost:4200
+    ports:
+      - "8082:8082"
+    networks: [app]
+    secrets:
+      - proceso_db_password
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "0.75", memory: 768M }
+      restart_policy: { condition: on-failure }
+
+  planificador-service:
+    image: naufragos-planificador:local
+    environment:
+      SERVER_PORT: "8081"
+      PLANIFICADOR_DB_URL: jdbc:postgresql://postgres:5432/planificador_db
+      PLANIFICADOR_DB_USER: planificador_user
+      PLANIFICADOR_BIBLIOTECA: ""
+      PLANIFICADOR_MOTOR: ${PLANIFICADOR_MOTOR:-nativo}
+      KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/planificador-realm
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/planificador-realm/protocol/openid-connect/certs
+      FRONTEND_ORIGINS: http://localhost:4200
+    ports:
+      - "8081:8081"
+    networks: [app]
+    secrets:
+      - planificador_db_password
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "0.75", memory: 768M }
+      restart_policy: { condition: on-failure }
+
+  frontend:
+    image: naufragos-frontend:local
+    ports:
+      - "4200:80"
+    networks: [app]
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "0.25", memory: 128M }
+      restart_policy: { condition: on-failure }
+
+networks:
+  app:
+    driver: overlay
+
+volumes:
+  postgres_data:
+
+secrets:
+  postgres_admin_password:
+    external: true
+    name: naufragos_postgres_admin_password
+  keycloak_db_password:
+    external: true
+    name: naufragos_keycloak_db_password
+  proceso_db_password:
+    external: true
+    name: naufragos_proceso_db_password
+  planificador_db_password:
+    external: true
+    name: naufragos_planificador_db_password
+  keycloak_admin_username:
+    external: true
+    name: naufragos_keycloak_admin_username
+  keycloak_admin_password:
+    external: true
+    name: naufragos_keycloak_admin_password

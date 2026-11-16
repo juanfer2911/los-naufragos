@@ -1,0 +1,11 @@
+protocolo,semilla,algoritmo,procesos,repeticion,motor,tiempo_ns,calentamiento,coinciden
+arquitectura,20271116,srtf,10000,1,c_jna,466246646,true,true
+arquitectura,20271116,srtf,10000,1,java,92614412,true,true
+arquitectura,20271116,srtf,10000,2,c_jna,66439605,true,true
+arquitectura,20271116,srtf,10000,2,java,31676839,true,true
+arquitectura,20271116,srtf,10000,3,c_jna,55481374,true,true
+arquitectura,20271116,srtf,10000,3,java,24368205,true,true
+arquitectura,20271116,srtf,10000,4,c_jna,86352033,false,true
+arquitectura,20271116,srtf,10000,4,java,23536550,false,true
+arquitectura,20271116,srtf,10000,5,c_jna,48688296,false,true
+arquitectura,20271116,srtf,10000,5,java,16340944,false,true
