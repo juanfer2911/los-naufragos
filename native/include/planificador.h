@@ -4,6 +4,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Menor prioridad numerica = mayor prioridad. PID es identidad, no desempate.
+ * Orden original significa posicion en la lista, no orden numerico del PID.
+ * Solo son elegibles procesos que ya llegaron; el ocio se marca explicitamente.
+ */
+
 typedef struct {
     int32_t id;
     int64_t llegada;
@@ -61,9 +66,8 @@ planificador_estado_t planificador_fcfs(
 /*
  * Ejecuta SJF no expropiativo.
  * Elige la menor rafaga entre los procesos que ya llegaron y ejecuta el
- * proceso seleccionado hasta finalizar. En empates de rafaga se propone
- * usar llegada menor, prioridad numerica menor y orden original, en ese
- * orden; esta politica esta pendiente de confirmacion con el profesor.
+ * proceso seleccionado hasta finalizar. En empates de rafaga usa prioridad
+ * numerica menor, llegada menor y orden original, en ese orden.
  * Las metricas se escriben en orden de entrada y los periodos ociosos usan
  * es_ocioso = 1. Ante capacidad insuficiente informa el total requerido de
  * segmentos sin modificar los buffers de resultados.
@@ -81,9 +85,9 @@ planificador_estado_t planificador_sjf(
  * Ejecuta SRTF de forma expropiativa y basada en eventos de llegada o
  * finalizacion, sin avanzar unidad por unidad. El menor tiempo restante es
  * el criterio principal. Si el proceso actual empata con otro en tiempo
- * restante, conserva la CPU; sin proceso actual, se propone desempatar por
- * llegada menor, prioridad numerica menor y orden original. Estos criterios
- * son provisionales y estan pendientes de confirmacion con el profesor.
+ * restante, conserva la CPU aunque tenga peor prioridad; sin un activo que
+ * deba conservarse, desempata por prioridad menor, llegada menor y orden
+ * original. La prioridad nunca causa desalojo por si sola.
  * Las metricas se escriben en orden de entrada. Ante capacidad insuficiente
  * informa el total requerido de segmentos sin modificar los buffers.
  */
@@ -99,11 +103,15 @@ planificador_estado_t planificador_srtf(
 /*
  * Ejecuta Round Robin con quantum positivo, expresado en las mismas
  * unidades que llegada y rafaga. Las llegadas se incorporan a la cola por
- * llegada ascendente y, en empate, orden original. Al vencer el quantum,
+ * llegada ascendente y, en empate, prioridad menor y orden original.
+ * Este orden solo se aplica a las llegadas, nunca reordena la cola completa.
+ * Al vencer el quantum,
  * primero se agregan las llegadas con tiempo <= reloj y luego se reinserta
- * el proceso si sigue pendiente. La prioridad no altera el orden FIFO.
+ * el proceso si sigue pendiente. Los que ya esperan conservan su posicion.
  * Las metricas se escriben en orden de entrada. Ante capacidad insuficiente
  * informa el total requerido de segmentos sin modificar los buffers.
+ * En SRTF y RR se fusionan segmentos contiguos del mismo proceso:
+ * representan ocupacion continua de CPU, no cada decision o turno interno.
  */
 planificador_estado_t planificador_rr(
     const proceso_t *procesos,

@@ -526,7 +526,7 @@ static int probar_sjf_llegadas_ocio_no_expropiacion_y_metricas(void)
     return 0;
 }
 
-static int probar_sjf_desempates_provisionales(void)
+static int probar_sjf_desempates_aprobados(void)
 {
     const proceso_t procesos[] = {
         { .id = 1, .llegada = 0, .rafaga = 4, .prioridad = 0 },
@@ -535,7 +535,7 @@ static int probar_sjf_desempates_provisionales(void)
         { .id = 4, .llegada = 1, .rafaga = 2, .prioridad = 2 },
         { .id = 5, .llegada = 2, .rafaga = 2, .prioridad = 1 }
     };
-    const int32_t orden_esperado[] = { 1, 3, 4, 2, 5 };
+    const int32_t orden_esperado[] = { 1, 5, 3, 4, 2 };
     segmento_t segmentos[sizeof(procesos) / sizeof(procesos[0])];
     metricas_proceso_t metricas[sizeof(procesos) / sizeof(procesos[0])];
     size_t cantidad_segmentos = 0;
@@ -1447,6 +1447,113 @@ static int probar_disposicion_abi_v1(void)
     return 0;
 }
 
+/* Regresiones de reglas aprobadas. Esperados literales, calculados a mano:
+ * retorno = fin - llegada; espera = retorno - rafaga;
+ * respuesta = primer inicio - llegada. No se obtiene un oraculo de otro motor.
+ */
+static int comprobar_planificacion_aprobada(
+    const char *algoritmo, const proceso_t *procesos, int32_t cantidad,
+    int64_t quantum, const segmento_t *esperados, int32_t ns_esperados,
+    const metricas_proceso_t *metricas_esperadas)
+{
+    segmento_t segmentos[32];
+    metricas_proceso_t metricas[32];
+    int32_t ns = 0;
+    int32_t nm = 0;
+    COMPROBAR(cantidad <= 32 && ns_esperados <= 32);
+    COMPROBAR(planificador_ejecutar_v1(algoritmo, procesos, cantidad, quantum,
+        segmentos, 32, &ns, metricas, 32, &nm) == PLANIFICADOR_OK);
+    COMPROBAR(ns == ns_esperados && nm == cantidad);
+    for (int32_t i = 0; i < ns; i++) {
+        COMPROBAR(comprobar_segmento(&segmentos[i], esperados[i].proceso_id,
+            esperados[i].inicio, esperados[i].fin, esperados[i].es_ocioso));
+    }
+    for (int32_t i = 0; i < nm; i++) {
+        COMPROBAR(comprobar_metrica(&metricas[i], metricas_esperadas[i].proceso_id,
+            metricas_esperadas[i].espera, metricas_esperadas[i].retorno,
+            metricas_esperadas[i].respuesta));
+    }
+    return 0;
+}
+
+static int probar_fcfs_y_rr_quantum_grande_reglas(void)
+{
+    /* P7 precede a P2 por ingreso, no por PID; P1 llega despues y espera. */
+    const proceso_t p[] = {{90, 0, 2, 3}, {7, 0, 1, 1}, {2, 0, 2, 1}, {1, 1, 1, 0}};
+    const segmento_t s[] = {{7, 0, 1, 0}, {2, 1, 3, 0}, {90, 3, 5, 0}, {1, 5, 6, 0}};
+    const metricas_proceso_t m[] = {{90, 3, 5, 3}, {7, 0, 1, 0}, {2, 1, 3, 1}, {1, 4, 5, 4}};
+    COMPROBAR(comprobar_planificacion_aprobada("fcfs", p, 4, 0, s, 4, m) == 0);
+    COMPROBAR(comprobar_planificacion_aprobada("rr", p, 4, 10, s, 4, m) == 0);
+    return 0;
+}
+
+static int probar_sjf_reglas_aprobadas(void)
+{
+    /* P90 no es expulsado. Luego prioridad, llegada y orden P20 antes de P5. */
+    const proceso_t p[] = {{90, 0, 4, 9}, {70, 1, 2, 3}, {30, 2, 2, 1}, {20, 1, 2, 1}, {5, 1, 2, 1}};
+    const segmento_t s[] = {{90, 0, 4, 0}, {20, 4, 6, 0}, {5, 6, 8, 0}, {30, 8, 10, 0}, {70, 10, 12, 0}};
+    const metricas_proceso_t m[] = {{90, 0, 4, 0}, {70, 9, 11, 9}, {30, 6, 8, 6}, {20, 3, 5, 3}, {5, 5, 7, 5}};
+    return comprobar_planificacion_aprobada("sjf", p, 5, 0, s, 5, m);
+}
+
+static int probar_srtf_empate_obligatorio(void)
+{
+    /* En t=2 ambos tienen restante 2: P1 conserva CPU pese a prioridad 3. */
+    const proceso_t p[] = {{1, 0, 4, 3}, {2, 2, 2, 1}};
+    const segmento_t s[] = {{1, 0, 4, 0}, {2, 4, 6, 0}};
+    const metricas_proceso_t m[] = {{1, 0, 4, 0}, {2, 2, 4, 2}};
+    return comprobar_planificacion_aprobada("srtf", p, 2, 0, s, 2, m);
+}
+
+static int probar_srtf_desalojo_estricto_y_ocio(void)
+{
+    /* P3 tiene peor prioridad, pero restante 2 < 5: si expulsa a P90. */
+    const proceso_t p[] = {{90, 2, 6, 1}, {3, 3, 2, 9}};
+    const segmento_t s[] = {{0, 0, 2, 1}, {90, 2, 3, 0}, {3, 3, 5, 0}, {90, 5, 10, 0}};
+    const metricas_proceso_t m[] = {{90, 2, 8, 0}, {3, 0, 2, 0}};
+    return comprobar_planificacion_aprobada("srtf", p, 2, 0, s, 4, m);
+}
+
+static int probar_srtf_candidatos_esperando(void)
+{
+    /* Tras terminar P90, todos esperan con restante 4. Se aplican los tres desempates. */
+    const proceso_t p[] = {{90, 0, 3, 9}, {70, 1, 4, 3}, {30, 2, 4, 1}, {20, 1, 4, 1}, {5, 1, 4, 1}};
+    const segmento_t s[] = {{90, 0, 3, 0}, {20, 3, 7, 0}, {5, 7, 11, 0}, {30, 11, 15, 0}, {70, 15, 19, 0}};
+    const metricas_proceso_t m[] = {{90, 0, 3, 0}, {70, 14, 18, 14}, {30, 9, 13, 9}, {20, 2, 6, 2}, {5, 6, 10, 6}};
+    return comprobar_planificacion_aprobada("srtf", p, 5, 0, s, 5, m);
+}
+
+static int probar_rr_llegadas_no_reordenan_cola(void)
+{
+    /* En t=2 la cola es [P7, P20, P3, P2, P90]. P7 ya esperaba;
+     * P20 llego antes; P3/P2 empatan en llegada y se ordenan por prioridad.
+     * Las nuevas llegadas entran antes de reinsertar P90. */
+    const proceso_t p[] = {{90, 0, 4, 1}, {7, 0, 1, 3}, {20, 1, 1, 9}, {2, 2, 1, 1}, {3, 2, 1, 0}};
+    const segmento_t s[] = {{90, 0, 2, 0}, {7, 2, 3, 0}, {20, 3, 4, 0}, {3, 4, 5, 0}, {2, 5, 6, 0}, {90, 6, 8, 0}};
+    const metricas_proceso_t m[] = {{90, 4, 8, 0}, {7, 2, 3, 2}, {20, 2, 3, 2}, {2, 3, 4, 3}, {3, 2, 3, 2}};
+    return comprobar_planificacion_aprobada("rr", p, 5, 2, s, 6, m);
+}
+
+static int probar_rr_prioridad_simultanea_y_fusion(void)
+{
+    const proceso_t p[] = {{90, 0, 3, 3}, {7, 0, 1, 1}, {2, 0, 1, 1}};
+    const segmento_t s[] = {{7, 0, 1, 0}, {2, 1, 2, 0}, {90, 2, 5, 0}};
+    const metricas_proceso_t m[] = {{90, 2, 5, 2}, {7, 0, 1, 0}, {2, 1, 2, 1}};
+    return comprobar_planificacion_aprobada("rr", p, 3, 2, s, 3, m);
+}
+
+static int probar_reglas_ocio_pid_cero(void)
+{
+    const proceso_t p[] = {{0, 3, 3, 2}};
+    const segmento_t s[] = {{0, 0, 3, 1}, {0, 3, 6, 0}};
+    const metricas_proceso_t m[] = {{0, 0, 3, 0}};
+    const char *algoritmos[] = {"fcfs", "sjf", "srtf", "rr"};
+    for (size_t i = 0; i < 4; i++) {
+        COMPROBAR(comprobar_planificacion_aprobada(algoritmos[i], p, 1, 1, s, 2, m) == 0);
+    }
+    return 0;
+}
+
 int main(void)
 {
     COMPROBAR(probar_llegadas_desempates_y_ocio() == 0);
@@ -1459,7 +1566,7 @@ int main(void)
     COMPROBAR(probar_desbordamiento_v1() == 0);
     COMPROBAR(probar_argumentos_invalidos_v1() == 0);
     COMPROBAR(probar_sjf_llegadas_ocio_no_expropiacion_y_metricas() == 0);
-    COMPROBAR(probar_sjf_desempates_provisionales() == 0);
+    COMPROBAR(probar_sjf_desempates_aprobados() == 0);
     COMPROBAR(probar_sjf_capacidad_insuficiente_sin_escritura() == 0);
     COMPROBAR(probar_sjf_argumentos_invalidos() == 0);
     COMPROBAR(probar_sjf_desbordamiento_sin_escritura() == 0);
@@ -1483,6 +1590,14 @@ int main(void)
     COMPROBAR(probar_interfaz_comun() == 0);
     COMPROBAR(probar_interfaz_comun_argumentos() == 0);
     COMPROBAR(probar_disposicion_abi_v1() == 0);
-    puts("OK: 34 casos nativos FCFS/FIFO, SJF, SRTF, RR e interfaz comun v1");
+    COMPROBAR(probar_fcfs_y_rr_quantum_grande_reglas() == 0);
+    COMPROBAR(probar_sjf_reglas_aprobadas() == 0);
+    COMPROBAR(probar_srtf_empate_obligatorio() == 0);
+    COMPROBAR(probar_srtf_desalojo_estricto_y_ocio() == 0);
+    COMPROBAR(probar_srtf_candidatos_esperando() == 0);
+    COMPROBAR(probar_rr_llegadas_no_reordenan_cola() == 0);
+    COMPROBAR(probar_rr_prioridad_simultanea_y_fusion() == 0);
+    COMPROBAR(probar_reglas_ocio_pid_cero() == 0);
+    puts("OK: 42 grupos de prueba nativos FCFS/FIFO, SJF, SRTF, RR e interfaz comun v1");
     return 0;
 }

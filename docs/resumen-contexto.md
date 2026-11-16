@@ -1,5 +1,67 @@
 # Resumen de contexto y continuidad
 
+## Estado vigente — plan académico de diez etapas
+
+Este bloque es la referencia actual para ambos integrantes y prevalece sobre los registros históricos que siguen. Rama de trabajo: `integracion`. La integración Angular–Spring Boot, los conjuntos compartidos, roles, historial y quantum persistente ya estaban respaldados en `aa6084a` en `origin/integracion`. Esta consolidación conserva esos avances, incorpora la etapa 1 y no desarrolla las etapas 2–10.
+
+### Documentos académicos obligatorios
+
+- [Planificador de procesos](<- Los Naufragos - Planificador de procesos.pdf>): 22 páginas; requisitos funcionales, autenticación, calidad y entregables Web 2.
+- [Núcleo de planificación](<Los Naufragos - Nucleo de planificacion.pdf>): 11 páginas; biblioteca C/JNA, referencia Java, pruebas, mediciones y despliegue de Arquitectura.
+- [Auditoría de requisitos](auditoria-requisitos.md): fotografía anterior a la finalización de la etapa 1; sus observaciones sobre desempates provisionales y ausencia de ayuda se sustituyen por el estado descrito aquí y en [native/README.md](../native/README.md).
+
+### ETAPA 1 — COMPLETADA: reglas de planificación y desempates
+
+Reglas aprobadas por el equipo e implementadas en C:
+
+| Algoritmo | Política definitiva del equipo |
+|---|---|
+| FCFS, no expulsivo | Menor llegada → mayor prioridad (menor número) → orden de ingreso; ejecuta toda la ráfaga sin interrupción |
+| SJF, no expulsivo | Entre procesos disponibles: menor ráfaga → mayor prioridad → menor llegada → ingreso; una llegada posterior no interrumpe al activo |
+| SRTF, expulsivo | Menor restante; si el activo empata, conserva CPU aunque tenga peor prioridad. Solo un restante estrictamente menor lo desaloja. Entre candidatos a seleccionar: prioridad → llegada → ingreso |
+| RR | Cola FIFO circular; prioridad solo dentro de grupos que llegan exactamente al mismo instante, luego ingreso. No reorganiza los que ya esperan. Nuevas llegadas pendientes antes de reinsertar al que agotó quantum; los terminados no vuelven a la cola |
+
+El PID identifica al proceso y **no es criterio de desempate**. Ingreso significa posición original en la lista, no PID numérico. Solo participan los procesos que ya llegaron. Se conserva ocio explícito y la fusión de intervalos consecutivos del mismo proceso cuando la ocupación de CPU no se interrumpe. Con quantum mayor que todas las ráfagas, RR coincide con FCFS también ante llegadas simultáneas.
+
+Ayuda disponible en Angular: **Configuración → Algoritmos a Ejecutar → Reglas de planificación**, sin rediseño de interfaz. Detalles y regresiones: `native/README.md`, `native/tests/test_planificador.c` y `PlanificadorNativoTests.java`.
+
+Verificación de cierre de la etapa 1: **42 grupos C**, **25 pruebas de planificador-service con C/JNA real**, **14 pruebas Angular** y **compilación Angular correcta**. Las pruebas comprueban rebanadas y métricas con esperados literales calculados independientemente; no son todavía los seis controles académicos completos de la etapa 2. Persisten únicamente los avisos conocidos de CSS/CommonJS.
+
+Ejemplo obligatorio SRTF: P1 `(llegada=0, ráfaga=4, prioridad=3)` y P2 `(2,2,1)`. En t=2 empatan en restante y P1 conserva CPU: **P1 [0,4) → P2 [4,6)**. Métricas: P1 espera 0, retorno 4, respuesta 0; P2 espera 2, retorno 4, respuesta 2.
+
+### Etapas siguientes: no declararlas completadas sin sus evidencias
+
+| Etapa | Estado | Próximo trabajo |
+|---|---|---|
+| 2. Controles independientes | PENDIENTE | Seis conjuntos con cálculos independientes: llegadas simultáneas, ráfagas iguales, CPU ociosa, quantum mayor que la ráfaga máxima, un solo proceso y prioridades repetidas |
+| 3. Pruebas de exactitud | PARCIAL | Hay pruebas C y Java/JNA; falta integrar los seis controles completos con Gantt, métricas y promedios independientes |
+| 4. Validaciones | PARCIAL | Mejorar mensajes específicos por campo en Angular y backend, sin retornos silenciosos |
+| 5. Comparación y Gantt | PARCIAL | Mostrar juntos los cuatro algoritmos con los tres promedios, ganadores y empates; verificar Gantt a 1366 píxeles |
+| 6. Evidencias funcionales y seguridad | PARCIAL | Completar persistencia tras reiniciar contenedores, JWT/roles, expiración/logout y tres sesiones de usabilidad |
+| 7. Referencia Java | PENDIENTE | Implementar los cuatro algoritmos equivalentes a C y selección por configuración |
+| 8. Banco de medición | PENDIENTE | Cargas reproducibles, tamaños/repeticiones exigidos por cada PDF y datos crudos de C/JNA frente a Java; acordar calentamiento |
+| 9. Despliegue Docker Swarm | PARCIAL | Existe Compose local de PostgreSQL/Keycloak; faltan Dockerfiles multietapa, stack integral, límites, Keycloak reproducible y arranque con un comando |
+| 10. Mediciones y entrega | PENDIENTE | Mediciones definitivas en contenedores, tamaño/arranque de imágenes, ADD, bitácora, anexos y sustentación |
+
+El **quinto algoritmo** se reserva para la demostración en vivo de modificabilidad (Planificador RQ-01 y Núcleo RN-06). Se puede preparar el razonamiento en papel; no implementarlo anticipadamente ni guardar una rama lista para fusionar. Las mediciones académicas definitivas de Arquitectura se harán después de disponer de contenedores con límites declarados. No mezclar su protocolo de SRTF/10.000 procesos con el de Web 2 (cuatro tamaños y 30 repeticiones).
+
+### Asuntos que deben confirmarse con el profesor
+
+- Diferencias entre la ABI C/JNA actual y las firmas/estructuras ilustrativas de los PDF: anchos, memoria, catálogo, ocio y códigos de error.
+- Sondeo más ejecución frente al requisito literal de una llamada nativa de planificación por corrida.
+- Lugar de cálculo de los promedios: actualmente se calculan en Spring a partir de métricas individuales de C.
+- Aceptación académica de los desempates aprobados por el equipo y de la fusión de rebanadas continuas. La etapa 1 está cerrada como implementación del equipo, sin atribuir una aprobación al profesor ni completar los controles académicos pendientes.
+
+### Cabecera oficial y continuidad compartida
+
+La cabecera activa y oficial es **`native/include/planificador.h`**. El Makefile compila con `-Iinclude`; fuente y pruebas incluyen ese archivo. Se eliminó `native/planificador.h` tras revisar referencias, scripts, configuraciones y dependencias reales del compilador: no tenía consumidores activos y describía otra interfaz. La cabecera activa mantiene sus firmas y estructuras; los cambios de la etapa 1 en ella son comentarios de reglas. No se rediseñó la ABI ni JNA.
+
+La consolidación volvió a ejecutar las suites tras eliminar la cabecera: **42 grupos C, 25 pruebas del planificador con C/JNA real, 7 de proceso-service, 14 Angular y build Angular correctos**, sin fallos ni omisiones en los informes Java. Se revisaron 94 archivos de texto sin coincidencias con credenciales locales reales ni tokens detectados. No se crearon usuarios ni se modificaron datos de PostgreSQL real; los tests HTTP usan H2/JWKS locales. No se incluyen `.env`, credenciales, tokens, binarios, logs ni artefactos de prueba en el commit. Los registros inferiores conservan lo que ocurrió en cada sesión; sus frases «sin commits» o estados antiguos no describen el estado vigente de este bloque.
+
+## Registro histórico de sesiones anteriores
+
+Etapa 1 de reglas aprobadas, 2026-11-16: [native/README.md](../native/README.md) reemplaza las descripciones provisionales de desempates de los registros inferiores. SJF y SRTF comparan prioridad antes de llegada en candidatos empatados; SRTF sigue conservando al activo en igualdad de restante. RR solo ordena sus grupos de llegadas simultáneas por prioridad/ingreso y conserva la cola FIFO y la reinserción posterior a nuevas llegadas. FCFS, PID como identidad y fusión de intervalos continuos permanecen. Se añadieron regresiones de rebanadas y métricas, sin preparar aún los seis controles de la etapa 2. ABI, OpenAPI, Java productivo, Keycloak y PostgreSQL no se modificaron. Ayuda breve en Configuración de Angular. Sin commits ni pushes.
+
 Auditoría del 2026-11-16: [tabla de requisitos contra los dos PDF originales y el código](auditoria-requisitos.md). Se ejecutaron 14 pruebas Angular, 19 del planificador con C/JNA, 7 de proceso-service y 34 casos C; todas pasaron. Los pendientes se documentaron sin implementarlos: aceptación funcional formal, comparación conjunta, despliegue completo, referencia Java y mediciones de calidad. El usuario autorizó commit y push únicamente a origin/integracion de los avances revisados. No se modificaron datos, usuarios ni contraseñas durante esta auditoría.
 
 ## Estado vigente: 2026-11-16 — Angular y conjuntos compartidos

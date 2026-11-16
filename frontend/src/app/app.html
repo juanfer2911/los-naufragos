@@ -129,6 +129,15 @@
               </div>
             </label>
           </div>
+          <details>
+            <summary>Reglas de planificación</summary>
+            <p>Un número de prioridad menor significa mayor prioridad. El PID identifica; el último desempate es el orden de ingreso, no el número de PID. Solo participan procesos que ya llegaron.</p>
+            <p><strong>FCFS:</strong> llegada, prioridad y orden de ingreso. No interrumpe un proceso iniciado.</p>
+            <p><strong>SJF no expulsivo:</strong> menor ráfaga; en empate, prioridad, llegada y orden de ingreso. Un proceso iniciado termina aunque llegue otro más corto.</p>
+            <p><strong>SRTF:</strong> menor tiempo restante. Si el activo empata, conserva la CPU aunque tenga peor prioridad; solo se expulsa por un restante estrictamente menor. Entre candidatos empatados: prioridad, llegada y orden de ingreso.</p>
+            <p><strong>Round Robin:</strong> cola FIFO circular. La prioridad solo ordena procesos con la misma llegada; no reorganiza la cola completa. Las nuevas llegadas se incorporan antes de reinsertar al que agotó quantum; un proceso terminado no vuelve a la cola.</p>
+            <p><strong>Gantt:</strong> muestra ocupación continua de CPU en intervalos [inicio, fin). Se fusionan segmentos contiguos del mismo proceso, aunque incluyan varios turnos RR. La CPU ociosa se marca explícitamente.</p>
+          </details>
         </div>
 
       </div>

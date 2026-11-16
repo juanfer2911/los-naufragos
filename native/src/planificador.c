@@ -262,8 +262,7 @@ typedef struct {
 } proceso_sjf_t;
 
 /*
- * Desempate provisional de SJF: llegada, prioridad y orden original.
- * La regla debe confirmarse con el profesor antes de considerarse definitiva.
+ * Empate de rafaga: prioridad, llegada y orden original. No expropiativo.
  */
 static int es_preferible_sjf(
     const proceso_sjf_t *candidato,
@@ -272,11 +271,11 @@ static int es_preferible_sjf(
     if (candidato->rafaga != actual->rafaga) {
         return candidato->rafaga < actual->rafaga;
     }
-    if (candidato->llegada != actual->llegada) {
-        return candidato->llegada < actual->llegada;
-    }
     if (candidato->prioridad != actual->prioridad) {
         return candidato->prioridad < actual->prioridad;
+    }
+    if (candidato->llegada != actual->llegada) {
+        return candidato->llegada < actual->llegada;
     }
     return candidato->indice_original < actual->indice_original;
 }
@@ -443,7 +442,7 @@ typedef struct {
 
 /*
  * Cuando no se conserva el proceso actual, los empates se resuelven por
- * llegada, prioridad y orden original. La politica es provisional.
+ * prioridad, llegada y orden original. El activo conserva CPU si empata.
  */
 static int es_preferible_srtf(
     const proceso_srtf_t *candidato,
@@ -452,11 +451,11 @@ static int es_preferible_srtf(
     if (candidato->restante != actual->restante) {
         return candidato->restante < actual->restante;
     }
-    if (candidato->llegada != actual->llegada) {
-        return candidato->llegada < actual->llegada;
-    }
     if (candidato->prioridad != actual->prioridad) {
         return candidato->prioridad < actual->prioridad;
+    }
+    if (candidato->llegada != actual->llegada) {
+        return candidato->llegada < actual->llegada;
     }
     return candidato->indice_original < actual->indice_original;
 }
@@ -751,6 +750,7 @@ typedef struct {
 
 typedef struct {
     int64_t llegada;
+    int32_t prioridad;
     size_t indice_original;
 } llegada_rr_t;
 
@@ -763,6 +763,13 @@ static int comparar_llegadas_rr(const void *izquierda, const void *derecha)
         return -1;
     }
     if (llegada_izquierda->llegada > llegada_derecha->llegada) {
+        return 1;
+    }
+    /* Solo ordena el grupo con igual llegada; nunca la cola de listos. */
+    if (llegada_izquierda->prioridad < llegada_derecha->prioridad) {
+        return -1;
+    }
+    if (llegada_izquierda->prioridad > llegada_derecha->prioridad) {
         return 1;
     }
     if (llegada_izquierda->indice_original
@@ -1050,6 +1057,7 @@ planificador_estado_t planificador_rr(
         }
         orden_llegadas[i] = (llegada_rr_t) {
             .llegada = procesos[i].llegada,
+            .prioridad = procesos[i].prioridad,
             .indice_original = i
         };
     }
