@@ -76,7 +76,7 @@ services:
       SERVER_PORT: "8081"
       PLANIFICADOR_DB_URL: jdbc:postgresql://postgres:5432/planificador_db
       PLANIFICADOR_DB_USER: planificador_user
-      PLANIFICADOR_BIBLIOTECA: ""
+      PLANIFICADOR_BIBLIOTECA: /app/libplanificador.so
       PLANIFICADOR_MOTOR: ${PLANIFICADOR_MOTOR:-nativo}
       KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/planificador-realm
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/planificador-realm/protocol/openid-connect/certs
