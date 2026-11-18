@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ErroresApi {
@@ -15,7 +16,16 @@ public class ErroresApi {
     @ExceptionHandler({IllegalArgumentException.class, MethodArgumentNotValidException.class,
             HttpMessageNotReadableException.class})
     ResponseEntity<ApiModelos.Error> entrada(Exception error) {
-        String mensaje = error instanceof IllegalArgumentException ? error.getMessage() : "Revise los campos y tipos de la solicitud.";
+        String mensaje;
+        if (error instanceof IllegalArgumentException) {
+            mensaje = error.getMessage();
+        } else if (error instanceof MethodArgumentNotValidException validacion) {
+            mensaje = validacion.getBindingResult().getFieldErrors().stream()
+                    .map(campo -> campo.getField() + ": " + campo.getDefaultMessage())
+                    .distinct().collect(Collectors.joining("; "));
+        } else {
+            mensaje = "Revise los campos y tipos de la solicitud.";
+        }
         return ResponseEntity.badRequest().body(new ApiModelos.Error("BAD_REQUEST", mensaje));
     }
 

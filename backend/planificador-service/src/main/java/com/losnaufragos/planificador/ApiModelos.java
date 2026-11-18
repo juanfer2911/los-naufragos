@@ -10,13 +10,13 @@ import java.util.List;
 public final class ApiModelos {
     private ApiModelos() { }
 
-    public record Proceso(@NotNull @Min(0) Integer pid,
-                          @NotNull @Min(0) Long arrivalTime,
-                          @NotNull @Min(1) Long burstTime,
-                          @NotNull Integer priority) { }
-    public record Solicitud(@NotBlank String algorithmId,
-                            @NotEmpty List<@NotNull @Valid Proceso> processes,
-                            @Min(1) Long quantum, String sourceSetId) { }
+    public record Proceso(@NotNull(message = "es obligatorio") @Min(value = 0, message = "debe ser mayor o igual que 0") Integer pid,
+                          @NotNull(message = "es obligatorio") @Min(value = 0, message = "debe ser mayor o igual que 0") Long arrivalTime,
+                          @NotNull(message = "es obligatorio") @Min(value = 1, message = "debe ser mayor o igual que 1") Long burstTime,
+                          @NotNull(message = "es obligatorio") Integer priority) { }
+    public record Solicitud(@NotBlank(message = "es obligatorio y no puede estar vacío") String algorithmId,
+                            @NotEmpty(message = "debe contener al menos un proceso") List<@NotNull(message = "no puede ser nulo") @Valid Proceso> processes,
+                            @Min(value = 1, message = "debe ser mayor o igual que 1") Long quantum, String sourceSetId) { }
     public record Algoritmo(String id) { }
     public record Catalogo(List<Algoritmo> algorithms) { }
     @JsonInclude(JsonInclude.Include.NON_NULL)
