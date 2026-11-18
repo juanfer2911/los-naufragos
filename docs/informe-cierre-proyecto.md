@@ -31,11 +31,13 @@ El proyecto implementa los ocho requisitos funcionales definidos para el planifi
 - Keycloak proporciona autenticación OIDC con PKCE. Los servicios validan los JWT y aplican las reglas de autorización por rol y propietario.
 - Docker Compose permite iniciar la infraestructura local. Docker Swarm integra frontend, microservicios, PostgreSQL y Keycloak para la demostración.
 
-## Evidencias registradas
+## Avances y resultados
 
-El repositorio documenta pruebas nativas de los cuatro algoritmos, pruebas unitarias e integración de los servicios, pruebas de Angular y recorridos con PostgreSQL y Keycloak reales. También registra la persistencia de conjuntos, el control de roles, la consulta privada del historial, el despliegue del stack Swarm y los resultados de los bancos C/JNA frente a Java, que comprobaron la igualdad de segmentos y métricas para las cargas medidas.
-
-Las evidencias y los procedimientos se describen en [auditoría de requisitos](auditoria-requisitos.md), [evidencias de seguridad y usabilidad](evidencias-seguridad-usabilidad.md), [infraestructura](../infra/README.md), y los README de [planificador-service](../backend/planificador-service/README.md), [proceso-service](../backend/proceso-service/README.md) y [frontend](../frontend/README.md). Este informe resume los registros existentes y no representa una nueva ejecución de esas pruebas.
+- Se implementaron y probaron los cuatro algoritmos de planificación en C, junto con su integración desde Java mediante JNA.
+- Se desarrollaron los dos servicios backend y la interfaz Angular, conectados a PostgreSQL y Keycloak.
+- Se verificaron los flujos de inicio de sesión, consulta del catálogo, ejecución de algoritmos, gestión de conjuntos, consulta del historial y permisos por rol en el entorno integrado.
+- Se desplegó el sistema completo en Docker Swarm con cinco servicios activos.
+- Se compararon los motores C/JNA y Java en los bancos de rendimiento. Para las cargas medidas, los resultados coincidieron en segmentos y métricas.
 
 ## Cierre
 
