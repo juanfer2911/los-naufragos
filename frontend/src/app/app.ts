@@ -68,6 +68,7 @@ export class App implements OnInit {
   algoritmosActivos = signal<string[]>([]);
   borradorProceso: Proceso = this.procesoVacio();
   procesoEditando = signal<number | null>(null);
+  errorProceso = signal('');
   mostrarFormularioProceso = signal(false);
   conjuntos = signal<Conjunto[]>([]);
   conjuntoSeleccionado = signal('');
@@ -89,10 +90,6 @@ export class App implements OnInit {
   promedioEspera = computed(() => this.resultadoActual()?.averages.waitingTime ?? 0);
   promedioRetorno = computed(() => this.resultadoActual()?.averages.turnaroundTime ?? 0);
   promedioRespuesta = computed(() => this.resultadoActual()?.averages.responseTime ?? 0);
-  algoritmoGanador = computed(() => {
-    const resultados = Object.values(this.resultados()).map(r => ({ algoritmo: r.algorithmId, espera: r.averages.waitingTime }));
-    return resultados.sort((a, b) => a.espera - b.espera)[0] ?? null;
-  });
   comparacionPromedios = computed(() => this.algoritmosDisponibles()
     .map(({ id }) => this.resultados()[id])
     .filter((resultado): resultado is Planificacion => resultado !== undefined)
@@ -225,10 +222,20 @@ export class App implements OnInit {
       this.cambiarAlgoritmo(this.algoritmosActivos()[0]);
     }
   }
-  abrirNuevoProceso() { this.procesoEditando.set(null); this.borradorProceso = this.procesoVacio(); this.mostrarFormularioProceso.set(true); }
-  editarProceso(proceso: Proceso) { this.procesoEditando.set(proceso.pid); this.borradorProceso = { ...proceso }; this.mostrarFormularioProceso.set(true); }
+  abrirNuevoProceso() { this.procesoEditando.set(null); this.borradorProceso = this.procesoVacio(); this.errorProceso.set(''); this.mostrarFormularioProceso.set(true); }
+  editarProceso(proceso: Proceso) { this.procesoEditando.set(proceso.pid); this.borradorProceso = { ...proceso }; this.errorProceso.set(''); this.mostrarFormularioProceso.set(true); }
   guardarProceso() {
-    if (!this.borradorProceso.rafaga || this.borradorProceso.rafaga < 1 || this.borradorProceso.llegada < 0) return;
+    const { llegada, rafaga, prioridad } = this.borradorProceso;
+    if (!Number.isSafeInteger(llegada) || llegada < 0) {
+      this.errorProceso.set('El tiempo de llegada debe ser un entero mayor o igual que 0.'); return;
+    }
+    if (!Number.isSafeInteger(rafaga) || rafaga < 1) {
+      this.errorProceso.set('La ráfaga debe ser un entero mayor o igual que 1.'); return;
+    }
+    if (!Number.isSafeInteger(prioridad) || prioridad < 1) {
+      this.errorProceso.set('La prioridad debe ser un entero mayor o igual que 1.'); return;
+    }
+    this.errorProceso.set('');
     const editando = this.procesoEditando();
     if (editando === null) {
       const pid = Math.max(0, ...this.procesos().map(p => p.pid)) + 1;

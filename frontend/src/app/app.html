@@ -256,7 +256,7 @@
       <!-- BANNER VERDE -->
       <div style="display: flex; justify-content: space-between; align-items: center; background: #dcfce7; border: 1px solid #86efac; padding: 16px 24px; border-radius: 12px; color: #166534;">
         <div style="font-weight: 600; font-size: 14px;">
-          <ng-container *ngIf="algoritmoGanador() as ganador; else sinComparacion">El algoritmo {{ nombreAlgoritmo(ganador.algoritmo) }} obtuvo el menor tiempo medio de espera: {{ ganador.espera | number:'1.1-1' }} ms</ng-container>
+          <ng-container *ngIf="comparacionPromedios().length; else sinComparacion">Menor tiempo medio de espera: {{ nombresGanadoresComparacion().espera }}</ng-container>
           <ng-template #sinComparacion>Seleccione algoritmos para comparar el tiempo medio de espera.</ng-template>
         </div>
         <div style="display: flex; gap: 12px;">
@@ -308,6 +308,7 @@
     <div *ngIf="mostrarFormularioProceso()" class="modal-backdrop" (click)="mostrarFormularioProceso.set(false)">
       <form class="process-modal" (ngSubmit)="guardarProceso()" (click)="$event.stopPropagation()">
         <h2>{{ procesoEditando() === null ? 'Agregar Proceso' : 'Editar Proceso' }}</h2>
+        <p *ngIf="errorProceso()" role="alert" class="form-error">{{ errorProceso() }}</p>
         <label>Tiempo de llegada (ms)<input name="llegada" type="number" min="0" [(ngModel)]="borradorProceso.llegada" required></label>
         <label>R&aacute;faga CPU (ms)<input name="rafaga" type="number" min="1" [(ngModel)]="borradorProceso.rafaga" required></label>
         <label>Prioridad<input name="prioridad" type="number" min="1" [(ngModel)]="borradorProceso.prioridad" required></label>
