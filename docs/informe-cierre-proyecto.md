@@ -39,6 +39,17 @@ El proyecto implementa los ocho requisitos funcionales definidos para el planifi
 - Se desplegó el sistema completo en Docker Swarm con cinco servicios activos.
 - Se compararon los motores C/JNA y Java en los bancos de rendimiento. Para las cargas medidas, los resultados coincidieron en segmentos y métricas.
 
+### Prueba de Round Robin con dos valores de quantum
+
+Se ejecutó la misma carga con quantum 2 y 5. Los procesos fueron P1 (llegada 0, ráfaga 8), P2 (llegada 2, ráfaga 4), P3 (llegada 4, ráfaga 9) y P4 (llegada 5, ráfaga 5). Las dos ejecuciones produjeron secuencias de Gantt diferentes.
+
+| Quantum | Espera promedio | Retorno promedio | Respuesta promedio |
+|---:|---:|---:|---:|
+| 2 | 10,5 ms | 17,0 ms | 1,8 ms |
+| 5 | 9,8 ms | 16,3 ms | 4,3 ms |
+
+La prueba muestra el efecto del quantum en la planificación: con quantum 2 mejoró el tiempo medio de respuesta; con quantum 5 fueron menores los promedios de espera y retorno.
+
 ## Cierre
 
 La solución integra captura y reutilización de procesos, planificación con cuatro algoritmos, presentación y comparación de métricas, persistencia, historial y control de acceso. Con estas funcionalidades, el proyecto cubre los requisitos funcionales del planificador mediante una aplicación web integrada y desplegable.
