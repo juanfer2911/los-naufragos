@@ -50,6 +50,10 @@ Se ejecutó la misma carga con quantum 2 y 5. Los procesos fueron P1 (llegada 0,
 
 La prueba muestra el efecto del quantum en la planificación: con quantum 2 mejoró el tiempo medio de respuesta; con quantum 5 fueron menores los promedios de espera y retorno.
 
+### Persistencia del conjunto después del reinicio del servicio
+
+El 18 de noviembre de 2026 se guardó desde Angular el conjunto `Ensayo persistencia 5 procesos`, con cinco procesos. Se reinició `proceso-service` en Docker Swarm; al volver a cargar el conjunto desde la aplicación, los cinco procesos seguían disponibles. PostgreSQL permaneció activo durante el ensayo.
+
 ## Cierre
 
 La solución integra captura y reutilización de procesos, planificación con cuatro algoritmos, presentación y comparación de métricas, persistencia, historial y control de acceso. Con estas funcionalidades, el proyecto cubre los requisitos funcionales del planificador mediante una aplicación web integrada y desplegable.
