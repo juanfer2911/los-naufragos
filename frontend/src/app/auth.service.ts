@@ -25,7 +25,7 @@ export class AuthService {
         pkceMethod: 'S256',
         responseMode: 'query',
         checkLoginIframe: false,
-        redirectUri: window.location.origin + '/',
+        redirectUri: window.location.href,
       });
       this.sesionIniciada.set(autenticado);
       this.actualizarRol();
@@ -39,7 +39,7 @@ export class AuthService {
   async iniciarSesion(loginHint: string): Promise<void> {
     this.error.set('');
     try {
-      await this.keycloak.login({ redirectUri: window.location.origin + '/', loginHint: loginHint.trim() || undefined });
+      await this.keycloak.login({ redirectUri: window.location.href, loginHint: loginHint.trim() || undefined });
     } catch {
       this.error.set('No se pudo iniciar la autenticacion con Keycloak.');
     }

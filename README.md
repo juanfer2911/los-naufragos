@@ -2,7 +2,7 @@
 
 Simulador didáctico de CPU: FCFS/FIFO, SJF, SRTF y Round Robin. Presenta segmentos de ejecución y CPU ociosa, y métricas de espera, retorno y respuesta. No ejecuta procesos reales del sistema operativo.
 
-## Estado actual — 2026-11-16
+## Estado actual - 2026-11-20
 
 Los cuatro algoritmos están implementados en `native/src/planificador.c`. La API pública está en `native/include/planificador.h`. La interfaz común `planificador_ejecutar_v1()` permite sondear tamaños y ejecutar los cuatro algoritmos mediante identificadores textuales estables: `fcfs`, `sjf`, `srtf`, `rr`. Sustituye al adaptador específico `planificador_fcfs_v1()`, retirado tras verificar su reemplazo y la ausencia de consumidores ejecutables fuera de las pruebas.
 
@@ -58,4 +58,11 @@ La ABI objetivo es Linux x86-64, alineación natural: las tres estructuras de pl
 
 Los PDF, DOCX y wireframes originales en `docs/` se conservan como fuentes académicas.
 
-El [ADD](docs/arquitectura-add.md) ya refleja la implementación. Quedan pendientes los seis controles académicos manuales, los recorridos completos con JWT y las tres sesiones RQ-03 con personas ajenas; el estado comprobado está en [evidencias de seguridad/usabilidad](docs/evidencias-seguridad-usabilidad.md). El tamaño de la imagen runtime del planificador y sus tres construcciones sin caché ya se midieron; falta medir las demás imágenes y el arranque en frío del stack completo, además de completar anexos. Los bancos Web 2 y Arquitectura ya se ejecutaron en contenedores con límites Swarm; resultados en [tests/benchmarks/README.md](tests/benchmarks/README.md). El stack Swarm se levantó desde una base vacía y sus servicios quedaron activos; incluye límites, secretos e importación de realm. Sus scripts están en `infra/swarm/` y la guía en [infra/README.md](infra/README.md). `proceso-service`, la integración Angular y el motor Java ya existen. `/comparaciones` como endpoint no está implementado; Angular ejecuta y compara los algoritmos mediante las operaciones de planificación existentes.
+
+## Estado de cierre y pendientes
+
+Al 2026-11-19 se ejecutaron en la interfaz los seis controles del equipo; los cuatro algoritmos coincidieron con Gantt, metricas, promedios y tiempos. Se registraron HTTP 403 para POST/DELETE estudiante, HTTP 401 para JWT alterado en ambos servicios y una renovacion OIDC observada. Evidencias en [controles manuales](docs/controles-manuales.md) y [seguridad/usabilidad](docs/evidencias-seguridad-usabilidad.md). Consulta el [anexos de entrega](docs/anexos-entrega.md) para la lista de evidencia y lo que sigue pendiente.
+
+Las cinco imagenes runtime fueron medidas y el redeploy con el volumen PostgreSQL existente estuvo listo en 97,718 s. Datos crudos y limites en [benchmarks](tests/benchmarks/README.md). El stack Swarm esta activo.
+
+Pendiente de personas externas: tres sesiones RQ-03. Pendiente academico: cotejar controles oficiales si se entregan, completar anexos/sustentacion y reservar el quinto algoritmo para la demostracion en vivo. El plan academico indica no implementarlo anticipadamente.

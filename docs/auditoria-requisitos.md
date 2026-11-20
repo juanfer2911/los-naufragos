@@ -1,5 +1,7 @@
 # Auditoría de requisitos — 2026-11-16
 
+> **Fotografía histórica.** Esta tabla describe la revisión cerrada el 2026-11-16 y no incluye el motor Java, las mediciones Swarm ni las verificaciones manuales comunicadas el 2026-11-18. Para el estado vigente, consultar el bloque inicial de [resumen-contexto.md](resumen-contexto.md), [evidencias-seguridad-usabilidad.md](evidencias-seguridad-usabilidad.md) y la matriz preparada en [controles-manuales.md](controles-manuales.md). Los estados de esta fotografía no deben leerse como una auditoría actualizada.
+
 Rama auditada: `integracion`, base `c63536a`, incluidos los cambios locales de integración Angular–proceso-service, roles y quantum. Esta auditoría no incorpora funcionalidades ni refactorizaciones. El usuario confirmó además la comprobación manual de los flujos principales.
 
 ## Fuentes y criterio

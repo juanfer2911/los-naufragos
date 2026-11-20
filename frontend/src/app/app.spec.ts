@@ -9,6 +9,7 @@ import { vi } from 'vitest';
 
 describe('App', () => {
   beforeEach(async () => {
+    window.history.replaceState({}, '', '/');
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideHttpClient(), provideHttpClientTesting(), {
@@ -34,6 +35,41 @@ describe('App', () => {
     expect(compiled.querySelector('input[name="correo"]')).not.toBeNull();
     expect(compiled.querySelector('input[type="password"]')).toBeNull();
     expect(compiled.querySelector('button[type="submit"]')?.textContent).toContain('Acceder con Keycloak');
+  });
+
+  it('conserva la ruta protegida y solicita login al abrirla sin sesión', async () => {
+    window.history.replaceState({}, '', '/historial');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.vistaActual()).toBe('historial');
+    expect(TestBed.inject(AuthService).iniciarSesion).toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/historial');
+  });
+
+  it('sincroniza la vista con la URL al navegar', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    app.cambiarVista('resultados');
+    expect(window.location.pathname).toBe('/resultados');
+    expect(app.vistaActual()).toBe('resultados');
+  });
+
+  it('compara las tres métricas y muestra todos los algoritmos empatados', () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    const fila = (algorithmId: string, waitingTime: number, turnaroundTime: number, responseTime: number): Planificacion => ({
+      algorithmId, planificationId: `id-${algorithmId}`, createdAt: '2026-11-18T00:00:00Z',
+      processes: [], segments: [], processMetrics: [],
+      averages: { waitingTime, turnaroundTime, responseTime },
+    });
+    app.algoritmosDisponibles.set(['fcfs', 'sjf', 'srtf', 'rr'].map(id => ({ id })));
+    app.resultados.set({
+      fcfs: fila('fcfs', 1, 5, 2), sjf: fila('sjf', 1, 3, 2),
+      srtf: fila('srtf', 2, 3, 1), rr: fila('rr', 3, 5, 3),
+    });
+    expect(app.comparacionPromedios()).toHaveLength(4);
+    expect(app.ganadoresComparacion()).toEqual({ espera: ['fcfs', 'sjf'], retorno: ['sjf', 'srtf'], respuesta: ['srtf'] });
   });
 
   it('representa la ociosidad por kind y conserva los valores del backend', () => {

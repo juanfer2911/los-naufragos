@@ -1,6 +1,6 @@
 # Núcleo de planificación
 
-Reglas definitivas aprobadas por el equipo el 2026-11-16 para la etapa 1. Esta aprobación no se atribuye al profesor: los PDF exigen políticas documentadas y deterministas, pero no enumeran todos estos desempates. No se implementa un quinto algoritmo ni se preparan aquí los seis controles académicos de las etapas siguientes.
+Reglas definitivas aprobadas por el equipo el 2026-11-16 para la etapa 1. Esta aprobación no se atribuye al profesor: los PDF exigen políticas documentadas y deterministas, pero no enumeran todos estos desempates. El quinto algoritmo sigue reservado para la demostración en vivo. La matriz de seis controles se documenta en `docs/controles-manuales.md` y sus casos C/JNA están en `PlanificadorNativoTests`; falta ejecutarlos manualmente en la interfaz.
 
 ## Convenciones
 

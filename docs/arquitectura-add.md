@@ -1,6 +1,6 @@
 # ADD — arquitectura implementada
 
-**Actualizado:** 2026-11-16. Este documento describe el sistema que existe en el repositorio y las verificaciones ejecutadas. No sustituye aprobaciones del docente ni presenta como completas las evidencias que requieren participantes reales.
+**Actualizado:** 2026-11-18. Este documento describe el sistema que existe en el repositorio y las verificaciones ejecutadas. No sustituye aprobaciones del docente ni presenta como completas las evidencias que requieren participantes reales.
 
 ## 1. Propósito y alcance
 
@@ -12,6 +12,7 @@ La arquitectura desplegada tiene un frontend Angular, exactamente dos microservi
 
 - **Reglas funcionales:** FCFS, SJF no expulsivo, SRTF expulsivo y Round Robin con quantum. Las reglas y desempates del equipo están en [native/README.md](../native/README.md). La aprobación del docente no se presume.
 - **Seguridad:** Keycloak emite tokens OIDC con vida de 60 segundos; cada API valida el JWT y la autorización se aplica en el servidor.
+- **Retorno de autenticación:** las vistas protegidas tienen rutas web (`/configuracion`, `/resultados`, `/conjuntos`, `/historial`); abrir una ruta sin sesión inicia Keycloak y conserva la URL para volver a esa vista.
 - **Persistencia:** conjuntos/procesos e historial pertenecen a bases separadas, una por microservicio.
 - **Desempeño:** el motor C compartido se consume con JNA. Un motor Java equivalente permite comparación directa.
 - **Despliegue:** Swarm empaqueta los cinco servicios con cuotas de recursos, secretos y volumen PostgreSQL persistente.
@@ -70,6 +71,7 @@ Los modelos y respuestas están descritos en [OpenAPI](openapi.yaml). El contrat
 - Todos los endpoints requieren autenticación. En `proceso-service`, crear/eliminar conjuntos requiere `ROLE_docente`; las consultas requieren un JWT válido. En `planificador-service`, todos los endpoints requieren autenticación.
 - Los endpoints devuelven JSON 401/403; CORS admite orígenes explícitos y rechaza `*`. La API es stateless y usa Bearer JWT.
 - El realm limita los access tokens a 60 segundos; Angular solicita renovación cuando quedan menos de 30 segundos y maneja el evento de expiración/logout.
+- Compose y Swarm importan el cliente y los roles del realm; no importan usuarios ni contraseñas personales. La cuenta estudiante puede registrarse y el rol docente se asigna en Keycloak. Las cuentas locales no se comparten mediante Git.
 - Swarm monta passwords como secretos Docker. La imagen del motor nativo compila `libplanificador.so`; las imágenes runtime de Java no incluyen compilador C.
 - El stack actual usa Keycloak `start-dev` y HTTP, y expone puertos de desarrollo. Es apropiado para demostración local; no incluye TLS, dominio, respaldos ni endurecimiento de producción.
 
@@ -80,9 +82,9 @@ Los modelos y respuestas están descritos en [OpenAPI](openapi.yaml). El contrat
 - Web 2: 960 comparaciones C/JNA-Java, y Arquitectura: 10; todas las salidas coincidieron exactamente. La repetición Swarm usó contenedores limitados a 0,75 CPU/768 MiB. Datos y metodología: [tests/benchmarks/README.md](../tests/benchmarks/README.md).
 - Imagen runtime del planificador: 128.252.783–128.252.846 bytes en tres construcciones sin caché; GCC ausente. Mediana de construcción 80,656 s. El runner de Arquitectura produjo su primera salida en como máximo 8,098 s con los límites Swarm. El servicio planificador estuvo listo 22,838 s después de iniciar su contenedor en el despliegue desde volumen nuevo. Esta última es una sola observación, no una mediana ni una solicitud HTTP autenticada.
 - Keycloak usa configuración preconstruida. En una actualización del servicio sobre PostgreSQL ya inicializado, el contenedor escuchó en 56,778 s. No es una medición de inicialización de base/realm desde cero ni del arranque conjunto del stack.
-- Los seis controles académicos manuales permanecen pendientes por decisión del usuario.
-- La prueba RQ-03 de usabilidad exige tres personas ajenas al equipo, tarea de cinco procesos, máximo 12 interacciones y 5 minutos, y cero preguntas. No hay sesiones registradas; no se inventan sus resultados.
-- La comprobación integral de JWT válido/expirado, autorización docente/estudiante, aislamiento entre usuarios y el flujo de Atrás tras logout todavía requiere evidencia funcional registrada.
+- La matriz de seis controles del equipo está preparada en `docs/controles-manuales.md`; falta ejecutarla en la interfaz y contrastarla con el material oficial del curso, que no está en este checkout.
+- La prueba RQ-03 de usabilidad exige tres personas ajenas al equipo, tarea de cinco procesos, máximo 12 interacciones y 5 minutos, y cero preguntas. El recorrido del usuario del 2026-11-18 no sustituye esas sesiones; aún no se registran participantes externos.
+- El usuario informó un recorrido manual de roles, acceso al historial propio, Atrás tras logout y sesión estable después de un minuto; el registro está en [evidencias-seguridad-usabilidad.md](evidencias-seguridad-usabilidad.md). Faltan capturas/respuestas HTTP reproducibles para JWT válido/expirado, 403 de escritura y renovación; no se afirma que permanecer autenticado por un minuto demuestre por sí solo el refresh del token.
 
 ## 8. Decisiones vigentes y asuntos por confirmar
 

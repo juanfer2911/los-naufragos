@@ -2,8 +2,20 @@
 
 ## Estado vigente — plan académico de diez etapas
 
-Este bloque es la referencia actual para ambos integrantes y prevalece sobre los registros históricos que siguen. Rama de trabajo: `integracion`. La integración Angular–Spring Boot, los conjuntos compartidos, roles, historial y quantum persistente ya estaban respaldados en `aa6084a` en `origin/integracion`. Actualización 2026-11-16: se añadieron la comparación conjunta, el motor Java de referencia y ambos bancos de medición. Los controles académicos manuales restantes se dejan pendientes por decisión del usuario.
+Este resumen es la referencia vigente para ambos integrantes y prevalece sobre sus registros historicos. Rama: integracion. La matriz C1-C6 se ejecuto en la interfaz el 2026-11-19. Seguridad, mediciones y pendientes externos se actualizan en el corte siguiente.
 
+## Corte vigente - 2026-11-19
+
+Esta tabla sustituye las fotografías de avance anteriores que aparecen más abajo en este archivo.
+
+| Frente | Estado actual | Pendiente concreto |
+|---|---|---|
+| Controles independientes | C1-C6 ejecutados en la interfaz; cuatro algoritmos por caso coincidieron en Gantt, métricas, promedios y tiempos | Cotejar los datos oficiales si el curso los entrega; la UI asigna PID automáticos |
+| Seguridad | POST/DELETE de estudiante: 403; JWT alterado: 401 en ambos servicios; renovación proactiva observada | Registrar comportamiento de expiración real y completar tres sesiones RQ-03 con personas externas |
+| Rendimiento/despliegue | Cinco imágenes medidas; stack completo listo en 97,718 s tras redeploy con volumen PostgreSQL existente | La cifra no representa volumen vacío ni mediana; incorporar resultados a anexos |
+| Entrega | Código, benchmarks, stack y controles disponibles | Anexos finales y sustentación |
+
+El quinto algoritmo sigue reservado para implementarlo en vivo como demostración de modificabilidad (Planificador RQ-01 y Núcleo RN-06); el plan académico indica que no debe implementarse con anticipación.
 ### Documentos académicos obligatorios
 
 - [Planificador de procesos](<- Los Naufragos - Planificador de procesos.pdf>): 22 páginas; requisitos funcionales, autenticación, calidad y entregables Web 2.
@@ -33,15 +45,15 @@ Ejemplo obligatorio SRTF: P1 `(llegada=0, ráfaga=4, prioridad=3)` y P2 `(2,2,1)
 
 | Etapa | Estado | Próximo trabajo |
 |---|---|---|
-| 2. Controles independientes | PENDIENTE | Seis conjuntos con cálculos independientes: llegadas simultáneas, ráfagas iguales, CPU ociosa, quantum mayor que la ráfaga máxima, un solo proceso y prioridades repetidas |
-| 3. Pruebas de exactitud | PARCIAL | Hay pruebas C y Java/JNA; falta integrar los seis controles completos con Gantt, métricas y promedios independientes |
-| 4. Validaciones | PARCIAL | Mejorar mensajes específicos por campo en Angular y backend, sin retornos silenciosos |
-| 5. Comparación y Gantt | PARCIAL | Comparación 4×3 con ganadores y empates implementada; falta verificar Gantt a 1366 píxeles |
-| 6. Evidencias funcionales y seguridad | PARCIAL | Evidencia de código JWT/roles, token de 60 s y rechazo anónimo registrada; faltan recorridos con token válido/expirado, persistencia tras reinicio y tres sesiones de usabilidad |
+| 2. Controles independientes | COMPLETADA PARA LA MATRIZ DEL EQUIPO | C1-C6 recorridos en Angular con cuatro algoritmos; pendiente el cotejo de datos oficiales si se proporcionan |
+| 3. Pruebas de exactitud | COMPLETADA PARA LOS CASOS DISPONIBLES | Los seis controles coinciden en segmentos, métricas y promedios; se conserva la limitación de PID automático de la UI |
+| 4. Validaciones | IMPLEMENTADA Y VERIFICADA | La interfaz bloquea valores inválidos con mensajes por campo; ambos builds pasaron las pruebas HTTP 400 con errores de campo/regla |
+| 5. Comparación y Gantt | IMPLEMENTADA Y VERIFICADA | Comparación 4x3; captura Gantt C1 con ocho procesos a 1366 px, todas las etiquetas visibles y sin scroll horizontal en `docs/evidencia-gantt-8-procesos-1366.png` |
+| 6. Evidencias funcionales y seguridad | PARCIAL | 403 escritura estudiante, 401 JWT alterado en ambos servicios y renovación proactiva observada; siguen pendientes tres sesiones RQ-03 externas y prueba de expiración real |
 | 7. Referencia Java | COMPLETADA | Los cuatro algoritmos están implementados; selección con `PLANIFICADOR_MOTOR=java`; coincidencia completa con C/JNA en los dos bancos locales |
 | 8. Banco de medición | COMPLETADA | Bancos Web 2 y Arquitectura repetidos en contenedor con 0,75 CPU y 768 MiB; 970 comparaciones exactas. CSV, medianas y recursos verificados en `tests/benchmarks/resultados/` |
 | 9. Despliegue Docker Swarm | COMPLETADA | Stack levantado desde volumen Swarm nuevo: cinco servicios 1/1; creadas las tres bases, importado el realm y comprobados Angular (200), OIDC (200) y APIs protegidas (401 sin sesión). Imágenes, secretos Docker, límites de recursos y scripts de inicio/detención incluidos |
-| 10. Mediciones y entrega | PARCIAL | Medición del motor y de la imagen del planificador en contenedor completada; falta medir imágenes restantes/arranque del stack completo, anexos y sustentación |
+| 10. Mediciones y entrega | PARCIAL | Tamaños de cinco imágenes y redeploy stack en 97,718 s medidos con volumen existente; quedan anexos y sustentación |
 
 El **quinto algoritmo** se reserva para la demostración en vivo de modificabilidad (Planificador RQ-01 y Núcleo RN-06). Se puede preparar el razonamiento en papel; no implementarlo anticipadamente ni guardar una rama lista para fusionar. Las mediciones académicas definitivas de Arquitectura se harán después de disponer de contenedores con límites declarados. No mezclar su protocolo de SRTF/10.000 procesos con el de Web 2 (cuatro tamaños y 30 repeticiones).
 

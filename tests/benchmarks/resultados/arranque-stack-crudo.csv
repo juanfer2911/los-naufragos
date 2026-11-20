@@ -1,0 +1,2 @@
+﻿"fecha_utc","segundos_hasta_listo","servicios","replicas","frontend_http","keycloak_oidc_http","planificador_sin_token_http","proceso_sin_token_http","volumen_postgres_vacio","imagenes_reconstruidas_sin_cache"
+"2026-11-20T00:56:54Z","97,718","5","5/5","200","200","401","401","False","False"

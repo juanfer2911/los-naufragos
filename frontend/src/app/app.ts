@@ -1,5 +1,5 @@
 // app.ts
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -33,6 +33,8 @@ export interface MetricaProceso {
   respuesta: number;
 }
 
+type VistaAplicacion = 'configuracion' | 'resultados' | 'conjuntos' | 'historial';
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -42,9 +44,28 @@ export interface MetricaProceso {
 })
 export class App implements OnInit {
   readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(PlanificadorApi);
   private readonly conjuntosApi = inject(ProcesoApi);
-  vistaActual = signal<'configuracion' | 'resultados' | 'conjuntos' | 'historial'>('configuracion');
+  vistaActual = signal<VistaAplicacion>('configuracion');
+  private readonly rutasVista: Record<VistaAplicacion, string> = {
+    configuracion: '/configuracion', resultados: '/resultados', conjuntos: '/conjuntos', historial: '/historial',
+  };
+  private readonly alNavegarAtras = () => {
+    if (!this.sesionIniciada()) {
+      void this.iniciarSesion();
+      return;
+    }
+    const vista = this.vistaDesdeRuta(window.location.pathname);
+    if (!vista) {
+      window.history.replaceState({ vista: 'configuracion' }, '', '/configuracion');
+      this.vistaActual.set('configuracion');
+      return;
+    }
+    this.vistaActual.set(vista);
+    if (vista === 'historial') void this.cargarHistorial();
+    if (vista === 'conjuntos' || vista === 'configuracion') void this.cargarConjuntos();
+  };
   sesionIniciada = this.auth.sesionIniciada;
   usuario = this.auth.usuario;
   correo = '';
@@ -117,7 +138,23 @@ export class App implements OnInit {
     };
   });
 
-  ngOnInit() { if (this.sesionIniciada()) void this.cargarDatos(); }
+  ngOnInit() {
+    const rutaVista = this.vistaDesdeRuta(window.location.pathname);
+    if (rutaVista) this.vistaActual.set(rutaVista);
+    else {
+      window.history.replaceState({ vista: 'configuracion' }, '', '/');
+      this.vistaActual.set('configuracion');
+    }
+    window.addEventListener('popstate', this.alNavegarAtras);
+    this.destroyRef.onDestroy(() => window.removeEventListener('popstate', this.alNavegarAtras));
+
+    if (this.sesionIniciada()) {
+      void this.cargarDatos();
+      if (this.vistaActual() === 'conjuntos') void this.cargarConjuntos();
+    } else if (window.location.pathname !== '/') {
+      void this.iniciarSesion();
+    }
+  }
 
   async cargarDatos() {
     this.cargando.set(true); this.error.set('');
@@ -133,10 +170,21 @@ export class App implements OnInit {
     finally { this.cargando.set(false); }
   }
 
-  cambiarVista(nuevaVista: 'configuracion' | 'resultados' | 'conjuntos' | 'historial') {
-    this.vistaActual.set(nuevaVista);
+  cambiarVista(nuevaVista: VistaAplicacion) {
+    this.navegarVista(nuevaVista);
     if (nuevaVista === 'historial') void this.cargarHistorial();
     if (nuevaVista === 'conjuntos' || nuevaVista === 'configuracion') void this.cargarConjuntos();
+  }
+
+  private navegarVista(vista: VistaAplicacion) {
+    this.vistaActual.set(vista);
+    const ruta = this.rutasVista[vista];
+    if (window.location.pathname !== ruta) window.history.pushState({ vista }, '', ruta);
+  }
+
+  private vistaDesdeRuta(ruta: string): VistaAplicacion | undefined {
+    if (ruta === '/') return 'configuracion';
+    return (Object.entries(this.rutasVista).find(([, valor]) => valor === ruta)?.[0] as VistaAplicacion | undefined);
   }
 
   cambiarAlgoritmo(alg: string) {
@@ -170,7 +218,7 @@ export class App implements OnInit {
         this.resultados.update(anteriores => ({ ...anteriores, [id]: resultado }));
       }
       this.algoritmoSeleccionado.set(this.algoritmosActivos()[0]);
-      this.vistaActual.set('resultados');
+      this.navegarVista('resultados');
       this.historial.set((await firstValueFrom(this.api.historial())).items);
     } catch (error) { this.mostrarError(error); }
     finally { this.cargando.set(false); }
@@ -196,7 +244,7 @@ export class App implements OnInit {
       this.algoritmosActivos.set([resultado.algorithmId]);
       // El contrato HTTP no publica el quantum historico; no inventar su valor.
       if (resultado.algorithmId === 'rr') this.quantum.set(null);
-      this.vistaActual.set('resultados');
+      this.navegarVista('resultados');
     } catch (error) { this.mostrarError(error); }
     finally { this.cargando.set(false); }
   }
@@ -270,7 +318,7 @@ export class App implements OnInit {
       this.conjuntoSeleccionado.set(conjunto.conjuntoId);
       this.resultados.set({});
       this.mostrarFormularioConjunto.set(false);
-      this.vistaActual.set('configuracion');
+      this.navegarVista('configuracion');
     } catch (error) { this.mostrarError(error); }
     finally { this.cargandoConjuntos.set(false); }
   }

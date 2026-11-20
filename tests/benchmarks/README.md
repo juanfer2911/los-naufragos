@@ -79,3 +79,18 @@ Para el umbral de primer resultado, el runner limitado inició el protocolo Arqu
 Evidencias crudas: `resultados/imagen-planificador-builds-crudos.csv`, `resultados/imagen-planificador-builds-mediana.csv` y `resultados/primer-resultado-contenedor.csv`; los registros de construcción y ejecución están junto a ellos.
 Durante el despliegue inicial del stack en volumen nuevo, `planificador-service` pasó de inicio de contenedor `20:21:30.116Z` a aplicación lista `20:21:52.954Z` (**22,838 s**); Spring reportó 19,889 s de arranque interno. Es una observación de una sola ejecución, no una mediana ni una prueba de respuesta autenticada.
 Tras preconstruir la configuración de Keycloak en su imagen, una actualización Swarm registró 56,778 s desde el inicio del contenedor hasta que Keycloak anunció que escuchaba en HTTP (55,919 s informados por Quarkus). La prueba fue sobre la base ya inicializada y el realm ya existente; no representa una inicialización nueva de PostgreSQL/realm ni una mediana del stack completo.
+## Imágenes runtime y arranque del stack completo — 2026-11-20 UTC
+
+Se inspeccionaron las cinco imágenes runtime usadas por el stack (`docker image inspect`). Los tamaños están en bytes y MB decimales; los datos crudos están en `resultados/imagenes-stack-crudas.csv`.
+
+| Imagen | Bytes | MB decimales |
+|---|---:|---:|
+| Frontend | 23.184.765 | 23,185 |
+| Keycloak | 236.736.629 | 236,737 |
+| PostgreSQL | 153.464.509 | 153,465 |
+| proceso-service | 126.240.694 | 126,241 |
+| planificador-service | 128.253.937 | 128,254 |
+
+Se retiró y desplegó de nuevo el stack con `tests/benchmarks/medir-arranque-stack.ps1`. Desde que comenzó `iniciar.ps1` hasta que los cinco servicios estuvieron `1/1` y Frontend/OIDC respondieron 200 y ambas APIs respondieron 401 sin token transcurrieron **97,718 s**. El CSV crudo está en `resultados/arranque-stack-crudo.csv`.
+
+La medición conserva el volumen PostgreSQL existente y usa la caché normal de construcción. Es un redeploy local del stack detenido, no un arranque con base vacía ni una mediana. No se eliminaron volúmenes ni datos.

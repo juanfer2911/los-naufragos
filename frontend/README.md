@@ -1,5 +1,9 @@
 # Frontend de Los Náufragos
 
+## Rutas protegidas y build (2026-11-18)
+
+Las vistas tienen URLs directas `/configuracion`, `/resultados`, `/conjuntos` y `/historial`. Entrar a una ruta sin sesión inicia Keycloak y el login regresa a la URL solicitada. La suite Angular corre antes del build de la imagen Docker; el build del 2026-11-18 pasó los 17 casos y compiló la imagen.
+
 ## Quantum guardado por conjunto (2026-11-16)
 
 En Configuración, establecer el quantum deseado (por ejemplo 8) antes de guardar el banco. El formulario de conjuntos utiliza ese valor como dato real opcional `quantum`, junto con sus procesos. Al cargarlo se restaura el quantum guardado; para conjuntos antiguos sin ese campo se utiliza 3, incluso si antes había otro valor en pantalla. El campo de Configuración sigue siendo editable: cambiarlo a 5 afecta la siguiente ejecución de RR y no modifica el conjunto ya guardado.

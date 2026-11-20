@@ -151,4 +151,92 @@ class PlanificadorNativoTests {
             assertEquals(esperado, motor.ejecutar(algoritmo, List.of(new Proceso(0, 3, 3, 2)), 1));
         }
     }
+
+    // Matriz de seis controles calculados independientemente en docs/controles-manuales.md.
+    @Test
+    void control1LlegadasSimultaneasYPrioridadesRepetidas() {
+        var procesos = List.of(new Proceso(2, 0, 4, 2), new Proceso(1, 0, 2, 1), new Proceso(3, 0, 1, 1));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 2, false), new Segmento(3, 2, 3, false),
+                        new Segmento(2, 3, 7, false)), List.of(new Metrica(2, 3, 7, 3),
+                        new Metrica(1, 0, 2, 0), new Metrica(3, 2, 3, 2))), motor.ejecutar("fcfs", procesos, 1));
+        var sjf = new Resultado(List.of(new Segmento(3, 0, 1, false), new Segmento(1, 1, 3, false),
+                        new Segmento(2, 3, 7, false)), List.of(new Metrica(2, 3, 7, 3),
+                        new Metrica(1, 1, 3, 1), new Metrica(3, 0, 1, 0)));
+        assertEquals(sjf, motor.ejecutar("sjf", procesos, 1));
+        assertEquals(sjf, motor.ejecutar("srtf", procesos, 1));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 1, false), new Segmento(3, 1, 2, false),
+                        new Segmento(2, 2, 3, false), new Segmento(1, 3, 4, false),
+                        new Segmento(2, 4, 7, false)), List.of(new Metrica(2, 3, 7, 2),
+                        new Metrica(1, 2, 4, 0), new Metrica(3, 1, 2, 1))), motor.ejecutar("rr", procesos, 1));
+    }
+
+    @Test
+    void control2RafagasIgualesYPidDistintoDelOrdenDeIngreso() {
+        var procesos = List.of(new Proceso(8, 0, 2, 1), new Proceso(3, 0, 2, 1));
+        var noExpulsivos = new Resultado(List.of(new Segmento(8, 0, 2, false), new Segmento(3, 2, 4, false)),
+                List.of(new Metrica(8, 0, 2, 0), new Metrica(3, 2, 4, 2)));
+        for (String algoritmo : List.of("fcfs", "sjf", "srtf")) {
+            assertEquals(noExpulsivos, motor.ejecutar(algoritmo, procesos, 1));
+        }
+        assertEquals(new Resultado(List.of(new Segmento(8, 0, 1, false), new Segmento(3, 1, 2, false),
+                        new Segmento(8, 2, 3, false), new Segmento(3, 3, 4, false)),
+                List.of(new Metrica(8, 1, 3, 0), new Metrica(3, 2, 4, 1))), motor.ejecutar("rr", procesos, 1));
+    }
+
+    @Test
+    void control3OcioInicialEIntermedio() {
+        var procesos = List.of(new Proceso(5, 2, 3, 1), new Proceso(6, 8, 2, 1));
+        var esperado = new Resultado(List.of(new Segmento(0, 0, 2, true), new Segmento(5, 2, 5, false),
+                        new Segmento(0, 5, 8, true), new Segmento(6, 8, 10, false)),
+                List.of(new Metrica(5, 0, 3, 0), new Metrica(6, 0, 2, 0)));
+        for (String algoritmo : List.of("fcfs", "sjf", "srtf", "rr")) {
+            assertEquals(esperado, motor.ejecutar(algoritmo, procesos, 2));
+        }
+    }
+
+    @Test
+    void control4QuantumMayorQueRafagaMaximaEquivaleAFcfs() {
+        var procesos = List.of(new Proceso(1, 0, 4, 2), new Proceso(2, 1, 2, 1), new Proceso(3, 2, 1, 1));
+        var fcfs = new Resultado(List.of(new Segmento(1, 0, 4, false), new Segmento(2, 4, 6, false),
+                        new Segmento(3, 6, 7, false)), List.of(new Metrica(1, 0, 4, 0),
+                        new Metrica(2, 3, 5, 3), new Metrica(3, 4, 5, 4)));
+        assertEquals(fcfs, motor.ejecutar("fcfs", procesos, 0));
+        assertEquals(fcfs, motor.ejecutar("rr", procesos, 10));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 4, false), new Segmento(3, 4, 5, false),
+                        new Segmento(2, 5, 7, false)), List.of(new Metrica(1, 0, 4, 0),
+                        new Metrica(2, 4, 6, 4), new Metrica(3, 2, 3, 2))), motor.ejecutar("sjf", procesos, 0));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 1, false), new Segmento(2, 1, 3, false),
+                        new Segmento(3, 3, 4, false), new Segmento(1, 4, 7, false)),
+                List.of(new Metrica(1, 3, 7, 0), new Metrica(2, 0, 2, 0),
+                        new Metrica(3, 1, 2, 1))), motor.ejecutar("srtf", procesos, 0));
+    }
+
+    @Test
+    void control5UnProcesoConOcioInicial() {
+        var procesos = List.of(new Proceso(9, 4, 5, 2));
+        var esperado = new Resultado(List.of(new Segmento(0, 0, 4, true), new Segmento(9, 4, 9, false)),
+                List.of(new Metrica(9, 0, 5, 0)));
+        for (String algoritmo : List.of("fcfs", "sjf", "srtf", "rr")) {
+            assertEquals(esperado, motor.ejecutar(algoritmo, procesos, 2));
+        }
+    }
+
+    @Test
+    void control6PrioridadesRepetidasYLlegadasEscalonadas() {
+        var procesos = List.of(new Proceso(1, 0, 4, 2), new Proceso(2, 1, 2, 2), new Proceso(3, 3, 1, 2));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 4, false), new Segmento(2, 4, 6, false),
+                        new Segmento(3, 6, 7, false)), List.of(new Metrica(1, 0, 4, 0),
+                        new Metrica(2, 3, 5, 3), new Metrica(3, 3, 4, 3))), motor.ejecutar("fcfs", procesos, 2));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 4, false), new Segmento(3, 4, 5, false),
+                        new Segmento(2, 5, 7, false)), List.of(new Metrica(1, 0, 4, 0),
+                        new Metrica(2, 4, 6, 4), new Metrica(3, 1, 2, 1))), motor.ejecutar("sjf", procesos, 2));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 1, false), new Segmento(2, 1, 3, false),
+                        new Segmento(3, 3, 4, false), new Segmento(1, 4, 7, false)),
+                List.of(new Metrica(1, 3, 7, 0), new Metrica(2, 0, 2, 0),
+                        new Metrica(3, 0, 1, 0))), motor.ejecutar("srtf", procesos, 2));
+        assertEquals(new Resultado(List.of(new Segmento(1, 0, 2, false), new Segmento(2, 2, 4, false),
+                        new Segmento(1, 4, 6, false), new Segmento(3, 6, 7, false)),
+                List.of(new Metrica(1, 2, 6, 0), new Metrica(2, 1, 3, 1),
+                        new Metrica(3, 3, 4, 3))), motor.ejecutar("rr", procesos, 2));
+    }
 }

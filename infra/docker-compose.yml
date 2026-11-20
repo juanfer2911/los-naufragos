@@ -24,7 +24,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.6
     restart: unless-stopped
-    command: ["start-dev"]
+    command: ["start-dev", "--import-realm"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,6 +41,8 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in infra/.env}
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ../backend/planificador-service/dev/keycloak-realm.json:/opt/keycloak/data/import/planificador-realm.json:ro
 
 volumes:
   postgres_data:

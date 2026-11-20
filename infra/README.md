@@ -1,8 +1,10 @@
 # Infraestructura local y Docker Swarm
 
-`docker-compose.yml` mantiene el entorno local actual con PostgreSQL 16.4 y Keycloak 25.0.6. Conserva sus datos en el volumen `postgres_data`.
+`docker-compose.yml` levanta PostgreSQL 16.4 y Keycloak 25.0.6. Keycloak importa `planificador-realm` desde `backend/planificador-service/dev/keycloak-realm.json` al iniciar si el realm aún no existe; conserva sus datos en el volumen `postgres_data`. La importación crea cliente y roles, no copia usuarios ni contraseñas personales. Las cuentas registradas y sus roles asignados viven en la base local de Keycloak.
 
 `swarm/stack.yml` agrega Angular, los dos microservicios, PostgreSQL y Keycloak, e importa el realm `planificador-realm`. Es un despliegue local de demostración: usa Keycloak 25.0.6 con configuración preconstruida y HTTP, publica los puertos de desarrollo y no incluye TLS ni respaldos. No lo expongas directamente a Internet.
+
+Las imágenes de `planificador-service` y `proceso-service` ejecutan sus pruebas Maven durante la etapa de construcción. El planificador compila primero `libplanificador.so` y activa las pruebas C/JNA; GCC queda fuera de la imagen final. La imagen Angular también ejecuta su suite unitaria antes de compilar.
 
 El realm limita los access tokens a 60 segundos; Angular intenta renovarlos cuando quedan menos de 30 segundos.
 
