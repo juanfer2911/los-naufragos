@@ -141,8 +141,8 @@ export class App implements OnInit {
   ngOnInit() {
     const rutaVista = this.vistaDesdeRuta(window.location.pathname);
     if (rutaVista) this.vistaActual.set(rutaVista);
-    else {
-      window.history.replaceState({ vista: 'configuracion' }, '', '/');
+    else if (window.location.pathname !== '/' || this.sesionIniciada()) {
+      window.history.replaceState({ vista: 'configuracion' }, '', '/configuracion');
       this.vistaActual.set('configuracion');
     }
     window.addEventListener('popstate', this.alNavegarAtras);
@@ -183,7 +183,7 @@ export class App implements OnInit {
   }
 
   private vistaDesdeRuta(ruta: string): VistaAplicacion | undefined {
-    if (ruta === '/') return 'configuracion';
+    if (ruta === '/' || ruta === '/inicio') return 'configuracion';
     return (Object.entries(this.rutasVista).find(([, valor]) => valor === ruta)?.[0] as VistaAplicacion | undefined);
   }
 
