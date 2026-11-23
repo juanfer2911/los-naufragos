@@ -512,6 +512,10 @@ components:
       type: object
       required: [name, processes]
       properties:
+        quantum:
+          type: integer
+          minimum: 1
+          description: Quantum opcional de referencia para Round Robin. Si se omite, al cargar el conjunto la interfaz utiliza 3; puede modificarse antes de ejecutar.
         name:
           type: string
           minLength: 1

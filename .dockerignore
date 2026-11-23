@@ -1,0 +1,16 @@
+.git
+.idea
+**/.env
+**/.env.*
+**/*.secret
+**/*.secrets
+**/credentials.local.*
+**/secrets.local.*
+**/target
+**/node_modules
+**/dist
+**/.angular
+**/libplanificador.so
+**/test_planificador.out
+**/*.log
+**/*.tmp

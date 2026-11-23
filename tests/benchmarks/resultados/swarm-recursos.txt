@@ -1,0 +1,5 @@
+﻿Perfil: mismos lÃ­mites de CPU y memoria que los microservicios en infra/swarm/stack.yml.
+LÃ­mite CPU: 0.75 vCPU (Docker NanoCpus 750000000).
+LÃ­mite memoria: 768 MiB (Docker Memory 805306368 bytes).
+Imagen banco: sha256:09d613b7abaa5f627f66ea854a2d249641e4c1f4105d08fe51ff49f45ac07581
+Fecha UTC: 2026-11-16T20:49:52Z
